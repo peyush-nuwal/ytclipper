@@ -29,7 +29,7 @@ func DBHealthCheck(db *database.Database) gin.HandlerFunc {
 		status := "healthy"
 		var err error
 
-		if db != nil && db.DB != nil {
+		if db != nil && db.Client != nil {
 			err = db.Ping(ctx)
 			if err != nil {
 				status = "unhealthy"
@@ -48,7 +48,7 @@ func DBHealthCheck(db *database.Database) gin.HandlerFunc {
 		middleware.RespondWithOK(c, gin.H{
 			"status":    status,
 			"timestamp": time.Now().UTC(),
-			"database":  "postgresql",
+			"database":  "mongodb",
 		})
 	}
 }
