@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WaitlistService } from '@/lib/waitlist';
+import {
+  SuccessResponse,
+  ErrorResponse,
+  WaitlistAdminEntriesData,
+  WaitlistAdminStatsData,
+  WaitlistAdminHelpData,
+} from '@/lib/types';
 
 // Basic admin endpoint for viewing waitlist data
 // In production, this should be protected with proper authentication
@@ -13,7 +20,14 @@ export async function GET(request: NextRequest) {
     !isDevMode &&
     (!adminKey || !validAdminKey || adminKey !== validAdminKey)
   ) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const errorResponse: ErrorResponse = {
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Unauthorized',
+      },
+    };
+    return NextResponse.json(errorResponse, { status: 401 });
   }
 
   try {
@@ -25,40 +39,58 @@ export async function GET(request: NextRequest) {
     switch (action) {
       case 'entries':
         const entries = await WaitlistService.getWaitlistEntries(limit, skip);
-        return NextResponse.json({
-          entries: entries.map(entry => ({
-            id: entry._id?.toString(),
-            email: entry.email,
-            name: entry.name,
-            source: entry.source,
-            createdAt: entry.createdAt,
-            ip: entry.metadata?.ip,
-            userAgent: entry.metadata?.userAgent?.substring(0, 100),
-          })),
-          total: entries.length,
-        });
+        const successResponse: SuccessResponse<WaitlistAdminEntriesData> = {
+          success: true,
+          message: 'Waitlist entries retrieved successfully',
+          data: {
+            entries: entries.map(entry => ({
+              id: entry._id?.toString() || '',
+              email: entry.email,
+              name: entry.name,
+              source: entry.source,
+              createdAt: entry.createdAt?.toISOString() || '',
+              ip: entry.metadata?.ip,
+              userAgent: entry.metadata?.userAgent?.substring(0, 100),
+            })),
+            total: entries.length,
+          },
+        };
+        return NextResponse.json(successResponse);
 
       case 'stats':
         const count = await WaitlistService.getWaitlistCount();
-        return NextResponse.json({
-          totalUsers: count,
-          message: 'Waitlist statistics',
-        });
+        const statsResponse: SuccessResponse<WaitlistAdminStatsData> = {
+          success: true,
+          message: 'Waitlist statistics retrieved successfully',
+          data: {
+            totalUsers: count,
+          },
+        };
+        return NextResponse.json(statsResponse);
 
       default:
-        return NextResponse.json({
-          availableActions: ['entries', 'stats'],
-          usage: {
-            entries: '/api/waitlist/admin?action=entries&limit=50&skip=0',
-            stats: '/api/waitlist/admin?action=stats',
+        const helpResponse: SuccessResponse<WaitlistAdminHelpData> = {
+          success: true,
+          message: 'Available admin actions',
+          data: {
+            availableActions: ['entries', 'stats'],
+            usage: {
+              entries: '/api/waitlist/admin?action=entries&limit=50&skip=0',
+              stats: '/api/waitlist/admin?action=stats',
+            },
           },
-        });
+        };
+        return NextResponse.json(helpResponse);
     }
   } catch (error) {
     console.error('Admin endpoint error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    const errorResponse: ErrorResponse = {
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Internal server error',
+      },
+    };
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
