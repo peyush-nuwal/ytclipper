@@ -1,21 +1,7 @@
 version: '3.8'
 
 services:
-  # PostgreSQL 14 Database
-  postgres:
-    image: postgres:14-alpine
-    container_name: clipture-postgres-dev
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: clipture_dev
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
-    ports:
-      - '5432:5432'
-    networks:
-      - clipture-dev-network
+  # Note: Using MongoDB Atlas cloud database instead of local MongoDB
 
   # Redis
   redis:
@@ -39,15 +25,11 @@ services:
       - ENV=development
       - LOG_LEVEL=debug
       - LOG_PRETTY=true
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=clipture_dev
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_SSL_MODE=disable
-      - JWT_SECRET=development_jwt_secret
+      - DB_NAME=${DB_NAME:-ytclipper}
+      - MONGO_URI=${MONGO_URI}
+      - JWT_SECRET=${JWT_SECRET:-development_jwt_secret}
       - JWT_EXPIRY=24h
-      - AUTH_JWT_SECRET=development_auth_secret
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-development_auth_secret}
       - AUTH_JWT_EXPIRY_HOURS=72
       - AUTH_PASSWORD_RESET_EXPIRY=24h
       - AUTH_TOKEN_ISSUER=clipture-app-dev
@@ -60,14 +42,11 @@ services:
     volumes:
       - ../backend:/app
     depends_on:
-      - postgres
       - redis
     networks:
       - clipture-dev-network
 
-volumes:
-  postgres_dev_data:
-    driver: local
+# No volumes needed for external MongoDB Atlas
 
 networks:
   clipture-dev-network:
