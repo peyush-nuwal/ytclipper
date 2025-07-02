@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 14 Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: clipture-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: clipture_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    networks:
+      - clipture-dev-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: clipture-redis-dev
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    networks:
+      - clipture-dev-network
+
+  # Backend API (Development mode)
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.dev
+    container_name: clipture-backend-dev
+    restart: unless-stopped
+    environment:
+      - PORT=8080
+      - ENV=development
+      - LOG_LEVEL=debug
+      - LOG_PRETTY=true
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=clipture_dev
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_SSL_MODE=disable
+      - JWT_SECRET=development_jwt_secret
+      - JWT_EXPIRY=24h
+      - AUTH_JWT_SECRET=development_auth_secret
+      - AUTH_JWT_EXPIRY_HOURS=72
+      - AUTH_PASSWORD_RESET_EXPIRY=24h
+      - AUTH_TOKEN_ISSUER=clipture-app-dev
+      - API_TIMEOUT=30s
+      - API_RATE_LIMIT=1000
+      - METRICS_ENABLED=false
+      - TRACING_ENABLED=false
+    ports:
+      - '8080:8080'
+    volumes:
+      - ../backend:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - clipture-dev-network
+
+volumes:
+  postgres_dev_data:
+    driver: local
+
+networks:
+  clipture-dev-network:
+    driver: bridge

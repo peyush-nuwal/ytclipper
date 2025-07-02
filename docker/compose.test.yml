@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # Test Database
+  postgres-test:
+    image: postgres:14-alpine
+    container_name: clipture-postgres-test
+    environment:
+      POSTGRES_DB: clipture_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5434:5432'
+    networks:
+      - clipture-test-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d clipture_test -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Redis for testing
+  redis-test:
+    image: redis:7-alpine
+    container_name: clipture-redis-test
+    ports:
+      - '6380:6379'
+    networks:
+      - clipture-test-network
+
+  # Backend Tests
+  backend-test:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.dev
+    container_name: clipture-backend-test
+    environment:
+      - PORT=8080
+      - ENV=test
+      - LOG_LEVEL=warn
+      - LOG_PRETTY=false
+      - DB_HOST=postgres-test
+      - DB_PORT=5432
+      - DB_NAME=clipture_test
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_SSL_MODE=disable
+    volumes:
+      - ../backend:/app
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    networks:
+      - clipture-test-network
+    command: ['go', 'test', './...']
+
+  # Frontend Tests
+  app-test:
+    build:
+      context: ../apps/app
+      dockerfile: Dockerfile
+      target: test
+    container_name: clipture-app-test
+    volumes:
+      - ../apps/app:/app
+    networks:
+      - clipture-test-network
+    command: ['npm', 'run', 'test']
+
+  # Landing Page Tests
+  landing-test:
+    build:
+      context: ../apps/landing
+      dockerfile: Dockerfile
+      target: test
+    container_name: clipture-landing-test
+    volumes:
+      - ../apps/landing:/app
+    networks:
+      - clipture-test-network
+    command: ['npm', 'run', 'test']
+
+networks:
+  clipture-test-network:
+    driver: bridge

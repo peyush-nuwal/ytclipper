@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 14 Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: clipture-postgres-only
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: clipture
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256 --auth-local=scram-sha-256'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - '5432:5432'
+    networks:
+      - clipture-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d clipture -U postgres']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  # Redis (for caching, sessions, etc.)
+  redis:
+    image: redis:7-alpine
+    container_name: clipture-redis-only
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass redis_password
+    volumes:
+      - redis_data:/data
+    ports:
+      - '6379:6379'
+    networks:
+      - clipture-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', '--raw', 'incr', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  clipture-network:
+    driver: bridge
