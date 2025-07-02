@@ -8,7 +8,7 @@ export interface WaitlistEntry {
   name?: string;
   createdAt: Date;
   source?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, string>;
 }
 
 // Enhanced Zod validation schema for API input

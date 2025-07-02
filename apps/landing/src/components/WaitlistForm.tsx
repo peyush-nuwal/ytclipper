@@ -12,6 +12,18 @@ interface FormState {
   message: string;
 }
 
+interface ErrorDetail {
+  field: string;
+  message: string;
+}
+
+interface ApiResponse {
+  message?: string;
+  error?: string;
+  type?: string;
+  details?: ErrorDetail[];
+}
+
 export default function WaitlistForm({
   source = 'landing',
   className = '',
@@ -40,7 +52,7 @@ export default function WaitlistForm({
         }),
       });
 
-      const data = await response.json();
+      const data: ApiResponse = await response.json();
 
       if (response.ok) {
         setFormState({
@@ -73,7 +85,7 @@ export default function WaitlistForm({
         } else if (data.details && Array.isArray(data.details)) {
           // Validation errors
           const errorMessages = data.details
-            .map((detail: any) => detail.message)
+            .map((detail: ErrorDetail) => detail.message)
             .join(', ');
           setFormState({
             status: 'error',
@@ -89,7 +101,8 @@ export default function WaitlistForm({
     } catch (error) {
       setFormState({
         status: 'error',
-        message: 'Network error. Please check your connection and try again.',
+        message:
+          'Network error. Please check your connection and try again.' + error,
       });
     }
   };

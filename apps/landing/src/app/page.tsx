@@ -7,6 +7,18 @@ interface FormState {
   message: string;
 }
 
+interface ErrorDetail {
+  field: string;
+  message: string;
+}
+
+interface ApiResponse {
+  message?: string;
+  error?: string;
+  type?: string;
+  details?: ErrorDetail[];
+}
+
 export default function Home() {
   const [email, setEmail] = useState('');
   const [formState, setFormState] = useState<FormState>({
@@ -34,7 +46,7 @@ export default function Home() {
         }),
       });
 
-      const data = await response.json();
+      const data: ApiResponse = await response.json();
 
       if (response.ok) {
         setFormState({
@@ -66,7 +78,7 @@ export default function Home() {
         } else if (data.details && Array.isArray(data.details)) {
           // Validation errors
           const errorMessages = data.details
-            .map((detail: any) => detail.message)
+            .map((detail: ErrorDetail) => detail.message)
             .join(', ');
           setFormState({
             status: 'error',
@@ -82,7 +94,8 @@ export default function Home() {
     } catch (error) {
       setFormState({
         status: 'error',
-        message: 'Network error. Please check your connection and try again.',
+        message:
+          'Network error. Please check your connection and try again.' + error,
       });
     }
   };
