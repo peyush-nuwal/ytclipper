@@ -2,10 +2,29 @@
 
 import { useState, useRef } from 'react';
 
+interface FormState {
+  status: 'idle' | 'loading' | 'success' | 'already_registered' | 'error';
+  message: string;
+}
+
+interface ErrorDetail {
+  field: string;
+  message: string;
+}
+
+interface ApiResponse {
+  message?: string;
+  error?: string;
+  type?: string;
+  details?: ErrorDetail[];
+}
+
 export default function Home() {
   const [email, setEmail] = useState('');
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [formState, setFormState] = useState<FormState>({
+    status: 'idle',
+    message: '',
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
 
@@ -13,18 +32,81 @@ export default function Home() {
     e.preventDefault();
     if (!email) return;
 
-    setIsLoading(true);
+    setFormState({ status: 'loading', message: '' });
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitted(true);
-      setIsLoading(false);
-      setEmail('');
-    }, 1200);
+    try {
+      const response = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          source: 'landing-hero',
+        }),
+      });
+
+      const data: ApiResponse = await response.json();
+
+      if (response.ok) {
+        setFormState({
+          status: 'success',
+          message:
+            data.message ||
+            "Welcome to the waitlist! We'll notify you when ytClipper is ready.",
+        });
+        setEmail('');
+      } else {
+        // Handle different error types with appropriate UI feedback
+        if (data.type === 'already_registered') {
+          setFormState({
+            status: 'already_registered',
+            message:
+              data.error ||
+              "You're already on our waitlist! We'll notify you when ytClipper is ready.",
+          });
+          setEmail('');
+        } else if (
+          data.type === 'security_violation' ||
+          response.status === 429
+        ) {
+          setFormState({
+            status: 'error',
+            message:
+              'Too many requests. Please wait a moment before trying again.',
+          });
+        } else if (data.details && Array.isArray(data.details)) {
+          // Validation errors
+          const errorMessages = data.details
+            .map((detail: ErrorDetail) => detail.message)
+            .join(', ');
+          setFormState({
+            status: 'error',
+            message: errorMessages,
+          });
+        } else {
+          setFormState({
+            status: 'error',
+            message: data.error || 'Something went wrong. Please try again.',
+          });
+        }
+      }
+    } catch (error) {
+      setFormState({
+        status: 'error',
+        message:
+          'Network error. Please check your connection and try again.' + error,
+      });
+    }
+  };
+
+  const resetForm = () => {
+    setFormState({ status: 'idle', message: '' });
+    setEmail('');
   };
 
   const scrollToWaitlist = () => {
-    setMobileMenuOpen(false); // Close mobile menu if open
+    setMobileMenuOpen(false);
     emailInputRef.current?.scrollIntoView({
       behavior: 'smooth',
       block: 'center',
@@ -32,6 +114,134 @@ export default function Home() {
     setTimeout(() => {
       emailInputRef.current?.focus();
     }, 500);
+  };
+
+  const renderSuccessState = (message: string, isAlreadyRegistered = false) => (
+    <div
+      className={`glass p-6 sm:p-8 border ${isAlreadyRegistered ? 'border-blue/30' : 'border-primary/30'}`}
+    >
+      <div className="flex items-center justify-center space-x-3 mb-3">
+        <div
+          className={`w-6 sm:w-8 h-6 sm:h-8 ${isAlreadyRegistered ? 'bg-blue' : 'bg-primary'} rounded-full flex items-center justify-center`}
+        >
+          <svg
+            className="w-4 sm:w-5 h-4 sm:h-5 text-white"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+        </div>
+        <span className="text-white font-semibold text-base sm:text-lg">
+          {isAlreadyRegistered
+            ? 'Already on the list!'
+            : "You're on the waitlist!"}
+        </span>
+      </div>
+      <p className="text-white/70 text-sm sm:text-base mb-4">{message}</p>
+      <button
+        onClick={resetForm}
+        className="text-primary hover:text-accent transition-colors text-sm font-medium"
+      >
+        Join with a different email →
+      </button>
+    </div>
+  );
+
+  const renderErrorState = (message: string) => (
+    <div className="glass p-6 sm:p-8 border border-red-400/30">
+      <div className="flex items-center justify-center space-x-3 mb-3">
+        <div className="w-6 sm:w-8 h-6 sm:h-8 bg-red-500 rounded-full flex items-center justify-center">
+          <svg
+            className="w-4 sm:w-5 h-4 sm:h-5 text-white"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </div>
+        <span className="text-white font-semibold text-base sm:text-lg">
+          Oops, something went wrong
+        </span>
+      </div>
+      <p className="text-white/70 text-sm sm:text-base mb-4">{message}</p>
+      <button
+        onClick={resetForm}
+        className="text-primary hover:text-accent transition-colors text-sm font-medium"
+      >
+        Try again →
+      </button>
+    </div>
+  );
+
+  const renderFormState = () => {
+    if (formState.status === 'success') {
+      return renderSuccessState(formState.message);
+    }
+
+    if (formState.status === 'already_registered') {
+      return renderSuccessState(formState.message, true);
+    }
+
+    if (formState.status === 'error') {
+      return renderErrorState(formState.message);
+    }
+
+    // Default form state
+    return (
+      <form
+        onSubmit={handleWaitlistSubmit}
+        className="flex flex-col gap-3 sm:gap-4"
+      >
+        <input
+          ref={emailInputRef}
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="Enter your email for early access"
+          className="input-modern w-full text-base"
+          required
+        />
+        <button
+          type="submit"
+          disabled={formState.status === 'loading'}
+          className="btn-primary w-full sm:w-auto flex items-center justify-center space-x-2 min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed py-4 sm:py-3"
+        >
+          {formState.status === 'loading' ? (
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+          ) : (
+            <>
+              <span>Join Waitlist</span>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 7l5 5m0 0l-5 5m5-5H6"
+                />
+              </svg>
+            </>
+          )}
+        </button>
+      </form>
+    );
   };
 
   return (
@@ -159,74 +369,7 @@ export default function Home() {
 
           {/* Waitlist Form */}
           <div className="max-w-lg mx-auto mb-8 sm:mb-10 md:mb-12 px-4 sm:px-0">
-            {!isSubmitted ? (
-              <form
-                onSubmit={handleWaitlistSubmit}
-                className="flex flex-col gap-3 sm:gap-4"
-              >
-                <input
-                  ref={emailInputRef}
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="Enter your email for early access"
-                  className="input-modern w-full text-base"
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="btn-primary w-full sm:w-auto flex items-center justify-center space-x-2 min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed py-4 sm:py-3"
-                >
-                  {isLoading ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  ) : (
-                    <>
-                      <span>Join Waitlist</span>
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M13 7l5 5m0 0l-5 5m5-5H6"
-                        />
-                      </svg>
-                    </>
-                  )}
-                </button>
-              </form>
-            ) : (
-              <div className="glass p-6 sm:p-8 border border-primary/30">
-                <div className="flex items-center justify-center space-x-3 mb-3">
-                  <div className="w-6 sm:w-8 h-6 sm:h-8 bg-primary rounded-full flex items-center justify-center">
-                    <svg
-                      className="w-4 sm:w-5 h-4 sm:h-5 text-white"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-white font-semibold text-base sm:text-lg">
-                    You&apos;re on the waitlist!
-                  </span>
-                </div>
-                <p className="text-white/70 text-sm sm:text-base">
-                  We&apos;ll notify you when ytClipper launches.
-                </p>
-              </div>
-            )}
+            {renderFormState()}
           </div>
 
           {/* Trust indicators */}
@@ -387,7 +530,9 @@ export default function Home() {
             insights from YouTube content.
           </p>
 
-          {!isSubmitted && (
+          {(formState.status === 'idle' ||
+            formState.status === 'loading' ||
+            formState.status === 'error') && (
             <form
               onSubmit={handleWaitlistSubmit}
               className="max-w-md mx-auto flex flex-col gap-3 sm:gap-4 px-4 sm:px-0"
@@ -402,10 +547,10 @@ export default function Home() {
               />
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={formState.status === 'loading'}
                 className="btn-primary w-full sm:w-auto flex items-center justify-center space-x-2 min-w-[140px] disabled:opacity-50 py-4 sm:py-3"
               >
-                {isLoading ? (
+                {formState.status === 'loading' ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                 ) : (
                   <>
@@ -427,6 +572,65 @@ export default function Home() {
                 )}
               </button>
             </form>
+          )}
+
+          {(formState.status === 'success' ||
+            formState.status === 'already_registered') && (
+            <div className="max-w-md mx-auto px-4 sm:px-0">
+              {formState.status === 'success' ? (
+                <div className="glass p-6 sm:p-8 border border-primary/30">
+                  <div className="flex items-center justify-center space-x-3 mb-3">
+                    <div className="w-6 sm:w-8 h-6 sm:h-8 bg-primary rounded-full flex items-center justify-center">
+                      <svg
+                        className="w-4 sm:w-5 h-4 sm:h-5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-white font-semibold text-base sm:text-lg">
+                      Welcome to the revolution!
+                    </span>
+                  </div>
+                  <p className="text-white/70 text-sm sm:text-base">
+                    {formState.message}
+                  </p>
+                </div>
+              ) : (
+                <div className="glass p-6 sm:p-8 border border-blue/30">
+                  <div className="flex items-center justify-center space-x-3 mb-3">
+                    <div className="w-6 sm:w-8 h-6 sm:h-8 bg-blue rounded-full flex items-center justify-center">
+                      <svg
+                        className="w-4 sm:w-5 h-4 sm:h-5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-white font-semibold text-base sm:text-lg">
+                      Already with us!
+                    </span>
+                  </div>
+                  <p className="text-white/70 text-sm sm:text-base">
+                    {formState.message}
+                  </p>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

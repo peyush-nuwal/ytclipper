@@ -26,6 +26,7 @@ go.work.sum
 
 tmp/
 # env file
+
 .env*
 !.env.example
 
