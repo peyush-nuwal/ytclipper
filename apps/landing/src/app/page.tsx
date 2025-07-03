@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ApiResponse,
   isSuccessResponse,
   WaitlistEntryData,
-  WaitlistCountData,
 } from '@/lib/types';
 
 interface FormState {
@@ -27,7 +26,7 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
 
-  const handleWaitlistSubmit = async (e: React.FormEvent) => {
+  const handleWaitlistSubmit =  async (e: React.FormEvent, source: 'landing-hero' | 'landing-bottom' | 'other') => {
     e.preventDefault();
     if (!email) return;
 
@@ -41,7 +40,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           email,
-          source: 'landing-hero',
+          source
         }),
       });
 
@@ -99,6 +98,7 @@ export default function Home() {
         }
       }
     } catch (error) {
+      console.error('Waitlist submission error:', error);
       setFormState({
         status: 'error',
         message: 'Network error. Please check your connection and try again.',
@@ -276,7 +276,7 @@ export default function Home() {
     // Default form state
     return (
       <form
-        onSubmit={handleWaitlistSubmit}
+        onSubmit={(e) => handleWaitlistSubmit(e, 'landing-hero')}
         className="flex flex-col gap-3 sm:gap-4"
       >
         <div className="relative group">
@@ -619,7 +619,7 @@ export default function Home() {
             formState.status === 'loading' ||
             formState.status === 'error') && (
             <form
-              onSubmit={handleWaitlistSubmit}
+              onSubmit={(e) => handleWaitlistSubmit(e, 'landing-bottom')}
               className="max-w-md mx-auto flex flex-col gap-3 sm:gap-4 px-4 sm:px-0"
             >
               <div className="relative group">

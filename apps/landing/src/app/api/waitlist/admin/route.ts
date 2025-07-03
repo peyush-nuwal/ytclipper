@@ -8,18 +8,12 @@ import {
   WaitlistAdminHelpData,
 } from '@/lib/types';
 
-// Basic admin endpoint for viewing waitlist data
-// In production, this should be protected with proper authentication
 export async function GET(request: NextRequest) {
-  // Simple protection - only allow in development or with admin key
   const adminKey = request.headers.get('x-admin-key');
   const isDevMode = process.env.NODE_ENV === 'development';
   const validAdminKey = process.env.ADMIN_KEY;
 
-  if (
-    !isDevMode &&
-    (!adminKey || !validAdminKey || adminKey !== validAdminKey)
-  ) {
+  if (!isDevMode && (!adminKey || !validAdminKey || adminKey !== validAdminKey)) {
     const errorResponse: ErrorResponse = {
       success: false,
       error: {
@@ -37,27 +31,31 @@ export async function GET(request: NextRequest) {
     const skip = parseInt(url.searchParams.get('skip') || '0');
 
     switch (action) {
-      case 'entries':
+      case 'entries': {
         const entries = await WaitlistService.getWaitlistEntries(limit, skip);
+
+        const mappedEntries = entries.map(entry => ({
+          id: entry.id.toString(),
+          email: entry.email,
+          source: entry.source ?? '',
+          createdAt: entry.createdAt.toISOString(),
+          ip: (entry.metadata as Record<string, string>)?.ip ?? '',
+          userAgent: ((entry.metadata as Record<string, string>)?.userAgent ?? '').substring(0, 100),
+        }));
+
         const successResponse: SuccessResponse<WaitlistAdminEntriesData> = {
           success: true,
           message: 'Waitlist entries retrieved successfully',
           data: {
-            entries: entries.map(entry => ({
-              id: entry._id?.toString() || '',
-              email: entry.email,
-              name: entry.name,
-              source: entry.source,
-              createdAt: entry.createdAt?.toISOString() || '',
-              ip: entry.metadata?.ip,
-              userAgent: entry.metadata?.userAgent?.substring(0, 100),
-            })),
-            total: entries.length,
+            entries: mappedEntries,
+            total: mappedEntries.length,
           },
         };
-        return NextResponse.json(successResponse);
 
-      case 'stats':
+        return NextResponse.json(successResponse);
+      }
+
+      case 'stats': {
         const count = await WaitlistService.getWaitlistCount();
         const statsResponse: SuccessResponse<WaitlistAdminStatsData> = {
           success: true,
@@ -67,8 +65,9 @@ export async function GET(request: NextRequest) {
           },
         };
         return NextResponse.json(statsResponse);
+      }
 
-      default:
+      default: {
         const helpResponse: SuccessResponse<WaitlistAdminHelpData> = {
           success: true,
           message: 'Available admin actions',
@@ -81,6 +80,7 @@ export async function GET(request: NextRequest) {
           },
         };
         return NextResponse.json(helpResponse);
+      }
     }
   } catch (error) {
     console.error('Admin endpoint error:', error);

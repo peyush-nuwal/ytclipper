@@ -1,53 +1,79 @@
-import { connectToDatabase } from './db';
-import { COLLECTIONS, WaitlistEntry, WaitlistInput } from './schema';
+import prisma from '@/lib/prisma';
+import { z } from 'zod';
+
+export const COLLECTIONS = {
+  WAITLIST: 'waitlist',
+} as const;
+
+export const waitlistSchema = z.object({
+  email: z
+    .string()
+    .email('Please enter a valid email address')
+    .min(5, 'Email must be at least 5 characters')
+    .max(254, 'Email must not exceed 254 characters')
+    .transform(email => email.toLowerCase().trim()),
+  name: z
+    .string()
+    .min(1, 'Name is required')
+    .max(100, 'Name must not exceed 100 characters')
+    .regex(
+      /^[a-zA-Z\s'-]+$/,
+      'Name can only contain letters, spaces, hyphens, and apostrophes'
+    )
+    .optional(),
+  source: z
+    .string()
+    .max(50, 'Source must not exceed 50 characters')
+    .regex(
+      /^[a-zA-Z0-9_-]+$/,
+      'Source can only contain letters, numbers, underscores, and hyphens'
+    )
+    .optional(),
+  metadata: z
+    .record(z.any())
+    .refine(
+      data => Object.keys(data || {}).length <= 10,
+      'Metadata cannot have more than 10 keys'
+    )
+    .optional(),
+});
+
+export type WaitlistInput = z.infer<typeof waitlistSchema>;
 
 export class WaitlistService {
-  private static async getCollection() {
-    const client = await connectToDatabase();
-    const db = client.db('ytclipper');
-    return db.collection<WaitlistEntry>(COLLECTIONS.WAITLIST);
-  }
-
   static async addToWaitlist(
     data: WaitlistInput
-  ): Promise<{ id: string; success: boolean; error?: string }> {
+  ): Promise<{ id: number | null; success: boolean; error?: string }> {
     try {
-      const collection = await this.getCollection();
+      const existing = await prisma.waitlist.findUnique({
+        where: { email: data.email },
+      });
 
-      // Check if email already exists
-      const existingEntry = await collection.findOne({ email: data.email });
-      if (existingEntry) {
+      if (existing) {
         return {
-          id: '',
+          id: null,
           success: false,
           error: 'Email already registered for waitlist',
         };
       }
 
-      // Create waitlist entry
-      const waitlistEntry: Omit<WaitlistEntry, '_id'> = {
-        email: data.email,
-        name: data.name,
-        source: data.source,
-        metadata: data.metadata,
-        createdAt: new Date(),
-      };
-
-      // Insert into database
-      const result = await collection.insertOne(waitlistEntry);
-
-      if (!result.acknowledged) {
-        throw new Error('Failed to insert waitlist entry');
-      }
+      const result = await prisma.waitlist.create({
+        data: {
+          email: data.email,
+          source: data.source,
+          metadata: data.metadata,
+          createdAt: new Date(),
+        },
+      });
 
       return {
-        id: result.insertedId.toString(),
+        id: result.id,
         success: true,
       };
     } catch (error) {
       console.error('Error adding to waitlist:', error);
       return {
-        id: '',
+        id: null,
         success: false,
         error: 'Failed to add to waitlist',
       };
@@ -56,8 +82,7 @@ export class WaitlistService {
 
   static async getWaitlistCount(): Promise<number> {
     try {
-      const collection = await this.getCollection();
-      return await collection.countDocuments();
+      return await prisma.waitlist.count();
     } catch (error) {
       console.error('Error getting waitlist count:', error);
       return 0;
@@ -66,8 +91,9 @@ export class WaitlistService {
 
   static async isEmailRegistered(email: string): Promise<boolean> {
     try {
-      const collection = await this.getCollection();
-      const entry = await collection.findOne({ email });
+      const entry = await prisma.waitlist.findUnique({
+        where: { email },
+      });
       return !!entry;
     } catch (error) {
       console.error('Error checking email registration:', error);
@@ -78,15 +104,13 @@ export class WaitlistService {
   static async getWaitlistEntries(
     limit: number = 100,
     skip: number = 0
-  ): Promise<WaitlistEntry[]> {
+  ) {
     try {
-      const collection = await this.getCollection();
-      return await collection
-        .find({})
-        .sort({ createdAt: -1 })
-        .limit(limit)
-        .skip(skip)
-        .toArray();
+      return await prisma.waitlist.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      });
     } catch (error) {
       console.error('Error getting waitlist entries:', error);
       return [];

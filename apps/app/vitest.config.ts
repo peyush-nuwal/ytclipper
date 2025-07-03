@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react-swc';
 
 export default defineConfig({
   plugins: [react()],
-  // @ts-ignore - Vitest extends Vite config
+  // @ts-expect-error - Vitest extends Vite config
   test: {
     globals: true,
     environment: 'jsdom',
