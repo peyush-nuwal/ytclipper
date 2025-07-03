@@ -1,0 +1,10 @@
+{
+  "extensionName": {
+    "message": "YTClipper",
+    "description": "Name of the extension"
+  },
+  "extensionDescription": {
+    "message": "Collect timestamps, highlights, and notes from YouTube videos for research",
+    "description": "Description of the extension"
+  }
+}
