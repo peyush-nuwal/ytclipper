@@ -1,40 +1,26 @@
-import { MongoClient } from 'mongodb';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import * as schema from './schema';
 
-if (!process.env.MONGODB_URI) {
-  throw new Error('MONGODB_URI environment variable is not set');
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL environment variable is not set');
 }
 
-let client: MongoClient;
-let clientPromise: Promise<MongoClient>;
+// Disable prefetch as it is not supported for "Transaction" pool mode
+const client = postgres(process.env.DATABASE_URL, { prepare: false });
+export const db = drizzle(client, { schema });
 
-if (process.env.NODE_ENV === 'development') {
-  // In development mode, use a global variable so that the value
-  // is preserved across module reloads caused by HMR (hot module replacement).
-  const globalWithMongo = global as typeof globalThis & {
-    _mongoClientPromise?: Promise<MongoClient>;
-  };
-
-  if (!globalWithMongo._mongoClientPromise) {
-    client = new MongoClient(process.env.MONGODB_URI);
-    globalWithMongo._mongoClientPromise = client.connect();
-  }
-  clientPromise = globalWithMongo._mongoClientPromise;
-} else {
-  // In production mode, it's best to not use a global variable.
-  client = new MongoClient(process.env.MONGODB_URI);
-  clientPromise = client.connect();
-}
-
-// Ensure connection
+// Connection helper function
 export async function connectToDatabase() {
   try {
-    const client = await clientPromise;
-    console.log('Connected to MongoDB');
-    return client;
+    // Test the connection with a simple query
+    await db.execute('SELECT 1');
+    console.log('Connected to PostgreSQL');
+    return db;
   } catch (error) {
-    console.error('Failed to connect to MongoDB:', error);
+    console.error('Failed to connect to PostgreSQL:', error);
     throw error;
   }
 }
 
-export default clientPromise;
+export default db;
