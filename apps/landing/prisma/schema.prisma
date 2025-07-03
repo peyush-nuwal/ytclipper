@@ -13,6 +13,5 @@ model Waitlist {
   id        Int      @id @default(autoincrement())
   email     String   @unique
   source    String? // optional
-  metadata  Json?
   createdAt DateTime @default(now())
 }

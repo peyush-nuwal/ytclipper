@@ -29,13 +29,6 @@ export const waitlistSchema = z.object({
       'Source can only contain letters, numbers, underscores, and hyphens'
     )
     .optional(),
-  metadata: z
-    .record(z.any())
-    .refine(
-      data => Object.keys(data || {}).length <= 10,
-      'Metadata cannot have more than 10 keys'
-    )
-    .optional(),
 });
 
 export type WaitlistInput = z.infer<typeof waitlistSchema>;
@@ -61,7 +54,6 @@ export class WaitlistService {
         data: {
           email: data.email,
           source: data.source,
-          metadata: data.metadata,
           createdAt: new Date(),
         },
       });
@@ -101,10 +93,7 @@ export class WaitlistService {
     }
   }
 
-  static async getWaitlistEntries(
-    limit: number = 100,
-    skip: number = 0
-  ) {
+  static async getWaitlistEntries(limit: number = 100, skip: number = 0) {
     try {
       return await prisma.waitlist.findMany({
         orderBy: { createdAt: 'desc' },

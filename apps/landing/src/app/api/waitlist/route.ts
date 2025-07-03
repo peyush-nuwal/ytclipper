@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { WaitlistService,waitlistSchema } from '@/lib/waitlist';
+import { WaitlistService, waitlistSchema } from '@/lib/waitlist';
 import { checkRateLimit, getClientIP, isValidEmail } from '@/lib/security';
 import {
   SuccessResponse,
@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
           error: {
             code: 'RATE_LIMIT_EXCEEDED',
             message:
-              securityCheck.reason || 'Too many requests. Please try again later.',
+              securityCheck.reason ||
+              'Too many requests. Please try again later.',
             details: { type: 'security_violation' },
           },
         },
@@ -92,17 +93,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const secureData = {
-      ...validatedData,
-      metadata: {
-        ...validatedData.metadata,
-        ip: clientIP,
-        userAgent: userAgent?.substring(0, 200),
-        timestamp: new Date().toISOString(),
-      },
-    };
-
-    const result = await WaitlistService.addToWaitlist(secureData);
+    const result = await WaitlistService.addToWaitlist(validatedData);
 
     if (!result.success) {
       if (result.error === 'Email already registered for waitlist') {
@@ -125,7 +116,8 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             code: 'WAITLIST_SERVICE_ERROR',
-            message: 'Unable to add you to the waitlist right now. Please try again later.',
+            message:
+              'Unable to add you to the waitlist right now. Please try again later.',
           },
         },
         { status: 500 }

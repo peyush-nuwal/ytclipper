@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
   const isDevMode = process.env.NODE_ENV === 'development';
   const validAdminKey = process.env.ADMIN_KEY;
 
-  if (!isDevMode && (!adminKey || !validAdminKey || adminKey !== validAdminKey)) {
+  if (
+    !isDevMode &&
+    (!adminKey || !validAdminKey || adminKey !== validAdminKey)
+  ) {
     const errorResponse: ErrorResponse = {
       success: false,
       error: {
@@ -34,14 +37,19 @@ export async function GET(request: NextRequest) {
       case 'entries': {
         const entries = await WaitlistService.getWaitlistEntries(limit, skip);
 
-        const mappedEntries = entries.map(entry => ({
-          id: entry.id.toString(),
-          email: entry.email,
-          source: entry.source ?? '',
-          createdAt: entry.createdAt.toISOString(),
-          ip: (entry.metadata as Record<string, string>)?.ip ?? '',
-          userAgent: ((entry.metadata as Record<string, string>)?.userAgent ?? '').substring(0, 100),
-        }));
+        const mappedEntries = entries.map(
+          (entry: {
+            id: number;
+            email: string;
+            source: string | null;
+            createdAt: Date;
+          }) => ({
+            id: entry.id.toString(),
+            email: entry.email,
+            source: entry.source ?? '',
+            createdAt: entry.createdAt.toISOString(),
+          })
+        );
 
         const successResponse: SuccessResponse<WaitlistAdminEntriesData> = {
           success: true,
