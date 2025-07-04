@@ -22,13 +22,11 @@ describe('Waitlist Schema', () => {
       email: 'test@example.com',
       name: 'John Doe',
       source: 'landing',
-      metadata: { utm_source: 'google' },
     };
 
     expect(requiredData.email).toBeDefined();
     expect(fullData.name).toBeDefined();
     expect(fullData.source).toBeDefined();
-    expect(fullData.metadata).toBeDefined();
   });
 });
 

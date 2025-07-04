@@ -1,6 +1,11 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
+import {
+  ApiResponse,
+  isSuccessResponse,
+  WaitlistEntryData,
+} from '@/lib/types';
 
 interface FormState {
   status: 'idle' | 'loading' | 'success' | 'already_registered' | 'error';
@@ -12,13 +17,6 @@ interface ErrorDetail {
   message: string;
 }
 
-interface ApiResponse {
-  message?: string;
-  error?: string;
-  type?: string;
-  details?: ErrorDetail[];
-}
-
 export default function Home() {
   const [email, setEmail] = useState('');
   const [formState, setFormState] = useState<FormState>({
@@ -28,7 +26,7 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
 
-  const handleWaitlistSubmit = async (e: React.FormEvent) => {
+  const handleWaitlistSubmit =  async (e: React.FormEvent, source: 'landing-hero' | 'landing-bottom' | 'other') => {
     e.preventDefault();
     if (!email) return;
 
@@ -42,60 +40,68 @@ export default function Home() {
         },
         body: JSON.stringify({
           email,
-          source: 'landing-hero',
+          source
         }),
       });
 
-      const data: ApiResponse = await response.json();
+      const data: ApiResponse<WaitlistEntryData> = await response.json();
 
-      if (response.ok) {
+      if (response.ok && isSuccessResponse(data)) {
         setFormState({
           status: 'success',
-          message:
-            data.message ||
-            "Welcome to the waitlist! We'll notify you when ytClipper is ready.",
+          message: data.message,
         });
         setEmail('');
-      } else {
-        // Handle different error types with appropriate UI feedback
-        if (data.type === 'already_registered') {
-          setFormState({
-            status: 'already_registered',
-            message:
-              data.error ||
-              "You're already on our waitlist! We'll notify you when ytClipper is ready.",
-          });
-          setEmail('');
-        } else if (
-          data.type === 'security_violation' ||
-          response.status === 429
-        ) {
-          setFormState({
-            status: 'error',
-            message:
-              'Too many requests. Please wait a moment before trying again.',
-          });
-        } else if (data.details && Array.isArray(data.details)) {
-          // Validation errors
-          const errorMessages = data.details
-            .map((detail: ErrorDetail) => detail.message)
-            .join(', ');
-          setFormState({
-            status: 'error',
-            message: errorMessages,
-          });
-        } else {
-          setFormState({
-            status: 'error',
-            message: data.error || 'Something went wrong. Please try again.',
-          });
+      } else if (!isSuccessResponse(data)) {
+        // Handle different error types based on error codes
+        switch (data.error.code) {
+          case 'EMAIL_ALREADY_REGISTERED':
+            setFormState({
+              status: 'already_registered',
+              message: data.error.message,
+            });
+            setEmail('');
+            break;
+
+          case 'RATE_LIMIT_EXCEEDED':
+            setFormState({
+              status: 'error',
+              message:
+                'Too many requests. Please wait a moment before trying again.',
+            });
+            break;
+
+          case 'VALIDATION_ERROR':
+            if (data.error.details && Array.isArray(data.error.details)) {
+              const errorMessages = data.error.details
+                .map((detail: ErrorDetail) => detail.message)
+                .join(', ');
+              setFormState({
+                status: 'error',
+                message: errorMessages,
+              });
+            } else {
+              setFormState({
+                status: 'error',
+                message: data.error.message,
+              });
+            }
+            break;
+
+          default:
+            setFormState({
+              status: 'error',
+              message:
+                data.error.message || 'Something went wrong. Please try again.',
+            });
+            break;
         }
       }
     } catch (error) {
+      console.error('Waitlist submission error:', error);
       setFormState({
         status: 'error',
-        message:
-          'Network error. Please check your connection and try again.' + error,
+        message: 'Network error. Please check your connection and try again.',
       });
     }
   };
@@ -118,71 +124,139 @@ export default function Home() {
 
   const renderSuccessState = (message: string, isAlreadyRegistered = false) => (
     <div
-      className={`glass p-6 sm:p-8 border ${isAlreadyRegistered ? 'border-blue/30' : 'border-primary/30'}`}
+      className={`glass p-6 sm:p-8 border ${
+        isAlreadyRegistered ? 'border-blue/40' : 'border-primary/40'
+      } relative overflow-hidden transform transition-all duration-500 ease-out animate-in slide-in-from-bottom-4 fade-in`}
     >
-      <div className="flex items-center justify-center space-x-3 mb-3">
-        <div
-          className={`w-6 sm:w-8 h-6 sm:h-8 ${isAlreadyRegistered ? 'bg-blue' : 'bg-primary'} rounded-full flex items-center justify-center`}
-        >
-          <svg
-            className="w-4 sm:w-5 h-4 sm:h-5 text-white"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+      {/* Subtle background effect */}
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/2 to-transparent opacity-50"></div>
+
+      <div className="relative z-10">
+        {/* Icon with enhanced animation */}
+        <div className="flex items-center justify-center mb-4">
+          <div
+            className={`w-16 h-16 ${
+              isAlreadyRegistered
+                ? 'bg-gradient-to-br from-blue to-blue/80'
+                : 'bg-gradient-to-br from-primary to-accent'
+            } rounded-full flex items-center justify-center shadow-xl transform transition-all duration-300 hover:scale-110`}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
+            <svg
+              className="w-8 h-8 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={3}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
         </div>
-        <span className="text-white font-semibold text-base sm:text-lg">
+
+        {/* Title with gradient text */}
+        <h3 className="text-center text-xl sm:text-2xl font-bold mb-3 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
           {isAlreadyRegistered
-            ? 'Already on the list!'
-            : "You're on the waitlist!"}
-        </span>
+            ? '🎉 Already on the list!'
+            : '🚀 Welcome aboard!'}
+        </h3>
+
+        {/* Message with better typography */}
+        <p className="text-white/80 text-sm sm:text-base mb-6 text-center leading-relaxed">
+          {message}
+        </p>
+
+        {/* Enhanced CTA button */}
+        <div className="text-center">
+          <button
+            onClick={resetForm}
+            className="group inline-flex items-center space-x-2 px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg backdrop-blur-sm"
+          >
+            <span className="text-white font-medium">
+              Join with different email
+            </span>
+            <svg
+              className="w-4 h-4 text-white/70 group-hover:text-white group-hover:translate-x-1 transition-all duration-200"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 7l5 5m0 0l-5 5m5-5H6"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
-      <p className="text-white/70 text-sm sm:text-base mb-4">{message}</p>
-      <button
-        onClick={resetForm}
-        className="text-primary hover:text-accent transition-colors text-sm font-medium"
-      >
-        Join with a different email →
-      </button>
     </div>
   );
 
   const renderErrorState = (message: string) => (
-    <div className="glass p-6 sm:p-8 border border-red-400/30">
-      <div className="flex items-center justify-center space-x-3 mb-3">
-        <div className="w-6 sm:w-8 h-6 sm:h-8 bg-red-500 rounded-full flex items-center justify-center">
-          <svg
-            className="w-4 sm:w-5 h-4 sm:h-5 text-white"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+    <div className="glass p-6 sm:p-8 border border-red-400/40 relative overflow-hidden transform transition-all duration-500 ease-out animate-in slide-in-from-bottom-4 fade-in">
+      {/* Subtle error background */}
+      <div className="absolute inset-0 bg-gradient-to-r from-red-500/3 via-orange-500/3 to-red-500/3 opacity-70"></div>
+
+      <div className="relative z-10">
+        {/* Enhanced error icon */}
+        <div className="flex items-center justify-center mb-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-orange-600 rounded-full flex items-center justify-center shadow-xl transform transition-all duration-300 hover:scale-110">
+            <svg
+              className="w-8 h-8 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={3}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.348 16.5c-.77.833.192 2.5 1.732 2.5z"
+              />
+            </svg>
+          </div>
         </div>
-        <span className="text-white font-semibold text-base sm:text-lg">
-          Oops, something went wrong
-        </span>
+
+        {/* Error title with emoji */}
+        <h3 className="text-center text-xl sm:text-2xl font-bold mb-3 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
+          😔 Something went wrong
+        </h3>
+
+        {/* Error message with better styling */}
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
+          <p className="text-white/90 text-sm sm:text-base text-center leading-relaxed">
+            {message}
+          </p>
+        </div>
+
+        {/* Enhanced retry button */}
+        <div className="text-center">
+          <button
+            onClick={resetForm}
+            className="group inline-flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-primary to-accent hover:from-accent hover:to-primary border border-primary/30 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl transform"
+          >
+            <svg
+              className="w-4 h-4 text-white group-hover:rotate-180 transition-transform duration-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            <span className="text-white font-medium">Try again</span>
+          </button>
+        </div>
       </div>
-      <p className="text-white/70 text-sm sm:text-base mb-4">{message}</p>
-      <button
-        onClick={resetForm}
-        className="text-primary hover:text-accent transition-colors text-sm font-medium"
-      >
-        Try again →
-      </button>
     </div>
   );
 
@@ -202,30 +276,39 @@ export default function Home() {
     // Default form state
     return (
       <form
-        onSubmit={handleWaitlistSubmit}
+        onSubmit={(e) => handleWaitlistSubmit(e, 'landing-hero')}
         className="flex flex-col gap-3 sm:gap-4"
       >
-        <input
-          ref={emailInputRef}
-          type="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          placeholder="Enter your email for early access"
-          className="input-modern w-full text-base"
-          required
-        />
+        <div className="relative group">
+          <input
+            ref={emailInputRef}
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="Enter your email for early access"
+            className="input-modern w-full peer focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-300 pl-11 text-white/95 font-medium tracking-wide"
+            required
+          />
+        </div>
         <button
           type="submit"
           disabled={formState.status === 'loading'}
-          className="btn-primary w-full sm:w-auto flex items-center justify-center space-x-2 min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed py-4 sm:py-3"
+          className="btn-primary w-full sm:w-auto flex items-center justify-center space-x-2 min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed py-4 sm:py-3 group relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl"
         >
           {formState.status === 'loading' ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            <div className="flex items-center space-x-2">
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              <div className="flex space-x-1">
+                <div className="w-1 h-1 bg-white/70 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                <div className="w-1 h-1 bg-white/70 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                <div className="w-1 h-1 bg-white/70 rounded-full animate-bounce"></div>
+              </div>
+            </div>
           ) : (
             <>
-              <span>Join Waitlist</span>
+              <span className="relative z-10">Join Waitlist</span>
               <svg
-                className="w-4 h-4"
+                className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200 relative z-10"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -237,6 +320,8 @@ export default function Home() {
                   d="M13 7l5 5m0 0l-5 5m5-5H6"
                 />
               </svg>
+              {/* Hover effect overlay */}
+              <div className="absolute inset-0 bg-gradient-to-r from-accent to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </>
           )}
         </button>
@@ -534,29 +619,37 @@ export default function Home() {
             formState.status === 'loading' ||
             formState.status === 'error') && (
             <form
-              onSubmit={handleWaitlistSubmit}
+              onSubmit={(e) => handleWaitlistSubmit(e, 'landing-bottom')}
               className="max-w-md mx-auto flex flex-col gap-3 sm:gap-4 px-4 sm:px-0"
             >
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="Your research email"
-                className="input-modern w-full text-base"
-                required
-              />
+              <div className="relative group">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="Your research email"
+                  className="input-modern w-full peer focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-300 pl-11 text-white/95 font-medium tracking-wide"
+                  required
+                />
+              </div>
               <button
                 type="submit"
                 disabled={formState.status === 'loading'}
-                className="btn-primary w-full sm:w-auto flex items-center justify-center space-x-2 min-w-[140px] disabled:opacity-50 py-4 sm:py-3"
+                className="btn-primary w-full sm:w-auto flex items-center justify-center space-x-2 min-w-[140px] disabled:opacity-50 py-4 sm:py-3 group relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl"
               >
                 {formState.status === 'loading' ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div className="w-1 h-1 bg-white/70 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                      <div className="w-1 h-1 bg-white/70 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                      <div className="w-1 h-1 bg-white/70 rounded-full animate-bounce"></div>
+                    </div>
+                  </div>
                 ) : (
                   <>
-                    <span>Join Now</span>
+                    <span className="relative z-10">Join Now</span>
                     <svg
-                      className="w-4 h-4"
+                      className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200 relative z-10"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -568,6 +661,8 @@ export default function Home() {
                         d="M13 7l5 5m0 0l-5 5m5-5H6"
                       />
                     </svg>
+                    {/* Hover effect overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-accent to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </>
                 )}
               </button>
