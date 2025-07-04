@@ -296,7 +296,6 @@ export default function Home() {
         >
           {formState.status === 'loading' ? (
             <div className="flex items-center space-x-2">
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               <div className="flex space-x-1">
                 <div className="w-1 h-1 bg-white/70 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
                 <div className="w-1 h-1 bg-white/70 rounded-full animate-bounce [animation-delay:-0.15s]"></div>

@@ -101,7 +101,6 @@ export async function POST(request: NextRequest) {
         // Notify Discord about duplicate signup attempt
         try {
           await notifyDiscord(
-            validatedData.name || 'Anonymous',
             validatedData.email,
             new Date().toISOString(),
             true
@@ -142,12 +141,7 @@ export async function POST(request: NextRequest) {
 
     // Notify Discord about successful new signup
     try {
-      await notifyDiscord(
-        validatedData.name || 'Anonymous',
-        validatedData.email,
-        new Date().toISOString(),
-        false
-      );
+      await notifyDiscord(validatedData.email, new Date().toISOString(), false);
     } catch (error) {
       console.error(
         'Failed to send Discord notification for new signup:',
