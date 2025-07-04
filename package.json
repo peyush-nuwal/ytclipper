@@ -9,6 +9,8 @@
     "dev": "turbo run dev",
     "dev:app": "pnpm --filter app dev",
     "dev:landing": "pnpm --filter landing dev",
+    "dev:extension": "pnpm --filter @ytclipper/extension dev",
+    "dev:extension:firefox": "pnpm --filter @ytclipper/extension dev:firefox",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
@@ -43,6 +45,10 @@
     ],
     "packages/ui/**/*.{ts,tsx}": [
       "cd packages/ui && pnpm lint:fix",
+      "prettier --write"
+    ],
+    "apps/extension/src/**/*.{ts,tsx}": [
+      "cd apps/extension && pnpm lint:fix",
       "prettier --write"
     ],
     "*.{json,css,scss,md,mdx}": [
