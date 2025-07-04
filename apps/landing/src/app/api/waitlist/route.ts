@@ -7,6 +7,7 @@ import {
   WaitlistEntryData,
   WaitlistCountData,
 } from '@/lib/types';
+import { notifyDiscord } from '@/lib/discord';
 
 export async function POST(request: NextRequest) {
   try {
@@ -97,6 +98,21 @@ export async function POST(request: NextRequest) {
 
     if (!result.success) {
       if (result.error === 'Email already registered for waitlist') {
+        // Notify Discord about duplicate signup attempt
+        try {
+          await notifyDiscord(
+            validatedData.name || 'Anonymous',
+            validatedData.email,
+            new Date().toISOString(),
+            true
+          );
+        } catch (error) {
+          console.error(
+            'Failed to send Discord notification for duplicate signup:',
+            error
+          );
+        }
+
         return NextResponse.json<ErrorResponse>(
           {
             success: false,
@@ -121,6 +137,21 @@ export async function POST(request: NextRequest) {
           },
         },
         { status: 500 }
+      );
+    }
+
+    // Notify Discord about successful new signup
+    try {
+      await notifyDiscord(
+        validatedData.name || 'Anonymous',
+        validatedData.email,
+        new Date().toISOString(),
+        false
+      );
+    } catch (error) {
+      console.error(
+        'Failed to send Discord notification for new signup:',
+        error
       );
     }
 
