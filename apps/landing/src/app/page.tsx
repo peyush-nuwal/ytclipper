@@ -1,12 +1,8 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import {
-  ApiResponse,
-  isSuccessResponse,
-  WaitlistEntryData,
-} from '@/lib/types';
-
+import { ApiResponse, isSuccessResponse, WaitlistEntryData } from '@/lib/types';
+import Image from 'next/image';
 interface FormState {
   status: 'idle' | 'loading' | 'success' | 'already_registered' | 'error';
   message: string;
@@ -26,7 +22,10 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
 
-  const handleWaitlistSubmit =  async (e: React.FormEvent, source: 'landing-hero' | 'landing-bottom' | 'other') => {
+  const handleWaitlistSubmit = async (
+    e: React.FormEvent,
+    source: 'landing-hero' | 'landing-bottom' | 'other'
+  ) => {
     e.preventDefault();
     if (!email) return;
 
@@ -40,7 +39,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           email,
-          source
+          source,
         }),
       });
 
@@ -111,16 +110,16 @@ export default function Home() {
     setEmail('');
   };
 
-  const scrollToWaitlist = () => {
-    setMobileMenuOpen(false);
-    emailInputRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
-    });
-    setTimeout(() => {
-      emailInputRef.current?.focus();
-    }, 500);
-  };
+  // const scrollToWaitlist = () => {
+  //   setMobileMenuOpen(false);
+  //   emailInputRef.current?.scrollIntoView({
+  //     behavior: 'smooth',
+  //     block: 'center',
+  //   });
+  //   setTimeout(() => {
+  //     emailInputRef.current?.focus();
+  //   }, 500);
+  // };
 
   const renderSuccessState = (message: string, isAlreadyRegistered = false) => (
     <div
@@ -276,7 +275,7 @@ export default function Home() {
     // Default form state
     return (
       <form
-        onSubmit={(e) => handleWaitlistSubmit(e, 'landing-hero')}
+        onSubmit={e => handleWaitlistSubmit(e, 'landing-hero')}
         className="flex flex-col gap-3 sm:gap-4"
       >
         <div className="relative group">
@@ -333,14 +332,21 @@ export default function Home() {
     <div className="gradient-bg">
       {/* Navigation Header */}
       <nav className="relative z-20 flex items-center justify-between px-4 sm:px-6 py-4 sm:py-6 max-w-7xl mx-auto">
-        <div className="flex items-center space-x-6 sm:space-x-8">
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            <div className="yt-logo scale-90 sm:scale-100"></div>
-            <span className="text-white font-semibold text-lg sm:text-xl tracking-tight">
-              ytClipper
-            </span>
-          </div>
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          <Image
+            src="/logo.png"
+            alt="ytClipper Logo"
+            width={40}
+            height={40}
+            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full"
+          />
+          <span className="text-white font-semibold text-lg sm:text-xl tracking-tight">
+            ytClipper
+          </span>
+        </div>
 
+        <div className="flex items-center space-x-3 sm:space-x-4">
+          {/* Desktop navigation links */}
           <div className="hidden md:flex items-center space-x-8">
             <a
               href="#"
@@ -354,16 +360,8 @@ export default function Home() {
             >
               Features
             </a>
-            <a
-              href="#"
-              className="text-white/80 hover:text-white transition-colors font-medium"
-            >
-              About
-            </a>
           </div>
-        </div>
 
-        <div className="flex items-center space-x-3 sm:space-x-4">
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -382,14 +380,6 @@ export default function Home() {
                 d="M4 6h16M4 12h16M4 18h16"
               />
             </svg>
-          </button>
-
-          {/* Desktop join button */}
-          <button
-            onClick={scrollToWaitlist}
-            className="hidden md:block text-white/80 hover:text-white transition-colors font-medium"
-          >
-            Join Waitlist
           </button>
         </div>
 
@@ -410,18 +400,6 @@ export default function Home() {
               >
                 Features
               </a>
-              <a
-                href="#"
-                className="block text-white/80 hover:text-white transition-colors font-medium py-2"
-              >
-                About
-              </a>
-              <button
-                onClick={scrollToWaitlist}
-                className="block w-full text-left bg-primary hover:bg-accent text-white px-4 py-3 rounded-lg font-medium transition-colors mt-4"
-              >
-                Join Waitlist
-              </button>
             </div>
           </div>
         )}
@@ -619,7 +597,7 @@ export default function Home() {
             formState.status === 'loading' ||
             formState.status === 'error') && (
             <form
-              onSubmit={(e) => handleWaitlistSubmit(e, 'landing-bottom')}
+              onSubmit={e => handleWaitlistSubmit(e, 'landing-bottom')}
               className="max-w-md mx-auto flex flex-col gap-3 sm:gap-4 px-4 sm:px-0"
             >
               <div className="relative group">
@@ -734,7 +712,13 @@ export default function Home() {
       <footer className="relative max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 border-t border-white/10">
         <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
           <div className="flex items-center space-x-2 sm:space-x-3">
-            <div className="yt-logo scale-75 sm:scale-90"></div>
+            <Image
+              src="/logo.png"
+              alt="ytClipper Logo"
+              width={40}
+              height={40}
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full"
+            />
             <span className="text-white font-semibold text-base sm:text-lg tracking-tight">
               ytClipper
             </span>
