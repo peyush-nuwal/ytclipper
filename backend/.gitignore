@@ -24,10 +24,10 @@ profile.cov
 go.work
 go.work.sum
 
-tmp/
 # env file
 .env*
 !.env.example
+
 
 *.exe
 *.log

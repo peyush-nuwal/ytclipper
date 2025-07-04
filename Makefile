@@ -39,25 +39,6 @@ restart: ## Restart all services
 logs: ## Show production logs
 	docker compose -f docker/compose.yml logs -f
 
-# Staging
-staging-build: ## Build staging services
-	docker compose -f docker/compose.staging.yml build
-
-staging-up: ## Start staging environment
-	docker compose -f docker/compose.staging.yml up --build
-
-staging-up-detached: ## Start staging environment in detached mode
-	docker compose -f docker/compose.staging.yml up --build -d
-
-staging-down: ## Stop staging environment
-	docker compose -f docker/compose.staging.yml down
-
-staging-restart: ## Restart staging services
-	docker compose -f docker/compose.staging.yml restart
-
-staging-logs: ## Show staging logs
-	docker compose -f docker/compose.staging.yml logs -f
-
 # Database Only (following Monkeytype pattern)
 db-only: ## Start only database services
 	docker compose -f docker/compose.db-only.yml up -d
@@ -72,14 +53,15 @@ test-env: ## Start testing environment
 test-env-build: ## Build and start testing environment
 	docker compose -f docker/compose.test.yml up --build --abort-on-container-exit
 
-# Database (MongoDB Atlas)
-db-shell: ## Connect to database shell (requires mongosh installed locally and MONGO_URI env var)
-	@if [ -z "$$MONGO_URI" ]; then echo "Error: MONGO_URI environment variable not set"; exit 1; fi
-	mongosh "$$MONGO_URI"
+# Database
+db-logs: ## Show database logs
+	docker compose -f docker/compose.yml logs -f postgres
 
-db-backup: ## Backup database (requires mongodump installed locally and MONGO_URI env var)
-	@if [ -z "$$MONGO_URI" ]; then echo "Error: MONGO_URI environment variable not set"; exit 1; fi
-	mongodump --uri="$$MONGO_URI" --out=./backup_$$(date +%Y%m%d_%H%M%S)
+db-shell: ## Connect to database shell
+	docker compose -f docker/compose.yml exec postgres psql -U postgres -d clipture
+
+db-backup: ## Backup database
+	docker compose -f docker/compose.yml exec postgres pg_dump -U postgres clipture > backup_$$(date +%Y%m%d_%H%M%S).sql
 
 # Backend
 backend-shell: ## Connect to backend container shell
@@ -90,16 +72,6 @@ backend-logs: ## Show backend logs
 
 backend-test: ## Run backend tests
 	cd backend && go test ./...
-
-# Backend Development (standalone)
-backend-dev: ## Start only backend service for development
-	docker compose -f docker/compose.dev.yml up --build backend
-
-backend-staging: ## Start only backend service for staging
-	docker compose -f docker/compose.staging.yml up --build backend
-
-backend-production: ## Start only backend service for production
-	docker compose -f docker/compose.yml up --build backend
 
 # Frontend
 frontend-shell: ## Connect to frontend container shell
@@ -129,24 +101,26 @@ health: ## Check health of all services
 	@curl -f http://localhost:8080/health || echo "Backend: UNHEALTHY"
 	@curl -f http://localhost:3000/health || echo "Frontend: UNHEALTHY"
 	@curl -f http://localhost:3001/health || echo "Landing: UNHEALTHY"
-	@echo "Note: MongoDB Atlas health is checked via backend /db-health endpoint"
 
 # Setup
 setup: ## Setup development environment
 	@echo "Setting up development environment..."
-	@echo "🔒 SECURITY WARNING: You need to create .env files with your actual MongoDB Atlas credentials"
-	@echo "📖 Please read docker/ENVIRONMENT_SETUP.md for detailed setup instructions"
-	@echo "📖 Please read backend/ENVIRONMENT_SETUP.md for backend-specific setup"
-	@echo ""
-	@echo "Required steps:"
-	@echo "1. Create docker/.env with your MongoDB Atlas URI"
-	@echo "2. Create backend/.env with your credentials (for local development)"
-	@echo "3. Never commit these .env files to version control"
-	@echo ""
-	@echo "After setting up .env files, run 'make dev' to start development environment"
+	@if [ ! -f backend/.env ]; then \
+		cp backend/env.example backend/.env && echo "Created backend/.env from template"; \
+	else \
+		echo "backend/.env already exists, skipping..."; \
+	fi
+	@if [ ! -f docker/.env ]; then \
+		cp docker/env.example docker/.env && echo "Created docker/.env from template"; \
+	else \
+		echo "docker/.env already exists, skipping..."; \
+	fi
+	@echo "Environment files are ready!"
+	@echo "Please edit backend/.env and docker/.env with your configuration"
+	@echo "Run 'make dev' to start development environment"
 
 # Install dependencies
 install: ## Install dependencies for all apps
-	cd backend && go mod tidy && go mod download
+	cd backend && go mod download
 	cd apps/app && npm install
 	cd apps/landing && npm install 

@@ -57,7 +57,7 @@ docker compose -f docker/compose.test.yml up --abort-on-container-exit
 | **Backend API** | 8080 | 8080 | Go backend with hot reload in dev |
 | **Frontend App** | 3000 | - | React application |
 | **Landing Page** | 3001 | - | Next.js landing page |
-| **MongoDB Atlas** | - | - | Cloud NoSQL database (external) |
+| **PostgreSQL** | 5432 | 5432 | Database server |
 | **Redis** | 6379 | 6379 | Cache and session store |
 
 ## 🐛 Testing
@@ -66,7 +66,7 @@ The testing environment provides isolated containers for:
 - Unit tests for backend (Go)
 - Component tests for frontend (React)
 - Integration tests for landing page (Next.js)
-- Isolated test database on MongoDB Atlas (separate database name)
+- Isolated test database (port 5434)
 
 ## 📊 Health Checks
 
@@ -87,9 +87,8 @@ All services include comprehensive health checks:
 
 1. **Hot Reload**: Backend uses Air for automatic reloading
 2. **Logs**: Use `docker compose logs -f <service>` to follow logs
-3. **Database Access**: MongoDB Atlas cloud database (no local port)
+3. **Database Access**: Connect directly via `localhost:5432` in development
 4. **Clean Restart**: `docker compose down -v` removes volumes
-5. **MongoDB Shell**: Use `make db-shell` (requires MONGO_URI environment variable)
 
 ## 📚 Related Documentation
 

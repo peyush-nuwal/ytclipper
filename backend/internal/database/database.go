@@ -7,73 +7,76 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/shubhamku044/clipture/internal/config"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type Database struct {
-	Client   *mongo.Client
-	Database *mongo.Database
+	DB *gorm.DB
 }
 
-// NewDatabase creates a new MongoDB connection
+// NewDatabase creates a new GORM database connection
 func NewDatabase(cfg *config.Config) (*Database, error) {
-	// Build MongoDB URI
-	var uri string
-	if cfg.Database.URI != "" {
-		uri = cfg.Database.URI
-	} else {
-		if cfg.Database.User != "" && cfg.Database.Password != "" {
-			uri = fmt.Sprintf("mongodb://%s:%s@%s:%s",
-				cfg.Database.User,
-				cfg.Database.Password,
-				cfg.Database.Host,
-				cfg.Database.Port,
-			)
-		} else {
-			uri = fmt.Sprintf("mongodb://%s:%s",
-				cfg.Database.Host,
-				cfg.Database.Port,
-			)
-		}
-	}
+	// Build DSN (Data Source Name)
+	dsn := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Database.Host,
+		cfg.Database.Port,
+		cfg.Database.User,
+		cfg.Database.Password,
+		cfg.Database.Name,
+		cfg.Database.SSLMode,
+	)
 
-	// Configure client options
-	clientOptions := options.Client().ApplyURI(uri).
-		SetMaxPoolSize(100).
-		SetMaxConnIdleTime(30 * time.Minute).
-		SetTimeout(10 * time.Second)
+	// Configure GORM logger
+	gormLogger := logger.New(
+		&GormLogWriter{}, // Custom log writer that uses zerolog
+		logger.Config{
+			SlowThreshold:             200 * time.Millisecond,
+			LogLevel:                  logger.Info,
+			IgnoreRecordNotFoundError: true,
+			Colorful:                  false,
+		},
+	)
 
-	// Configure retry logic
-	var client *mongo.Client
+	// Configure GORM with retry logic
+	var db *gorm.DB
 	var err error
 	var retryCount int
 	maxRetries := 5
 	retryDelay := 2 * time.Second
 
 	for retryCount < maxRetries {
-		// Create context with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		// Open GORM connection
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
+			Logger: gormLogger,
+			NowFunc: func() time.Time {
+				return time.Now().UTC()
+			},
+		})
 
-		// Connect to MongoDB
-		client, err = mongo.Connect(ctx, clientOptions)
 		if err == nil {
 			// Test connection
-			err = client.Ping(ctx, readpref.Primary())
+			sqlDB, err := db.DB()
 			if err == nil {
-				cancel()
-				break
+				err = sqlDB.Ping()
+				if err == nil {
+					// Configure connection pool settings
+					sqlDB.SetMaxIdleConns(10)
+					sqlDB.SetMaxOpenConns(100)
+					sqlDB.SetConnMaxLifetime(time.Hour)
+					break
+				}
 			}
 		}
-		cancel()
 
 		retryCount++
 		log.Warn().
 			Err(err).
 			Int("retry", retryCount).
 			Int("maxRetries", maxRetries).
-			Msg("Failed to connect to MongoDB, retrying...")
+			Msg("Failed to connect to database, retrying...")
 
 		if retryCount < maxRetries {
 			time.Sleep(retryDelay)
@@ -83,117 +86,80 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to MongoDB after %d attempts: %w", maxRetries, err)
+		return nil, fmt.Errorf("failed to connect to database after %d attempts: %w", maxRetries, err)
 	}
-
-	// Get database instance
-	database := client.Database(cfg.Database.Name)
 
 	log.Info().
 		Str("host", cfg.Database.Host).
 		Str("port", cfg.Database.Port).
 		Str("database", cfg.Database.Name).
-		Msg("Successfully connected to MongoDB")
+		Str("user", cfg.Database.User).
+		Msg("Successfully connected to database")
 
-	return &Database{
-		Client:   client,
-		Database: database,
-	}, nil
+	return &Database{DB: db}, nil
 }
 
-// Close closes the MongoDB connection
+// Close closes the database connection
 func (db *Database) Close() {
-	if db.Client != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		err := db.Client.Disconnect(ctx)
-		if err != nil {
-			log.Error().Err(err).Msg("Error closing MongoDB connection")
-		} else {
-			log.Info().Msg("MongoDB connection closed")
+	if db.DB != nil {
+		sqlDB, err := db.DB.DB()
+		if err == nil {
+			err = sqlDB.Close()
+			if err != nil {
+				log.Error().Err(err).Msg("Error closing database connection")
+			} else {
+				log.Info().Msg("Database connection closed")
+			}
 		}
 	}
 }
 
-// Ping checks if the MongoDB connection is alive
+// Ping checks if the database connection is alive
 func (db *Database) Ping(ctx context.Context) error {
-	if db.Client == nil {
-		return fmt.Errorf("MongoDB client is nil")
-	}
-	return db.Client.Ping(ctx, readpref.Primary())
-}
-
-// GetCollection returns a collection instance
-func (db *Database) GetCollection(name string) *mongo.Collection {
-	return db.Database.Collection(name)
-}
-
-// CreateIndex creates an index on the specified collection
-func (db *Database) CreateIndex(ctx context.Context, collection string, indexModel mongo.IndexModel) error {
-	coll := db.GetCollection(collection)
-	_, err := coll.Indexes().CreateOne(ctx, indexModel)
-	return err
-}
-
-// CreateRecord creates a new record in the specified collection
-func (db *Database) CreateRecord(ctx context.Context, collection string, document interface{}) (*mongo.InsertOneResult, error) {
-	coll := db.GetCollection(collection)
-	return coll.InsertOne(ctx, document)
-}
-
-// FindRecord finds a single record in the specified collection
-func (db *Database) FindRecord(ctx context.Context, collection string, filter interface{}, result interface{}) error {
-	coll := db.GetCollection(collection)
-	return coll.FindOne(ctx, filter).Decode(result)
-}
-
-// FindRecords finds multiple records in the specified collection
-func (db *Database) FindRecords(ctx context.Context, collection string, filter interface{}, results interface{}, opts ...*options.FindOptions) error {
-	coll := db.GetCollection(collection)
-	cursor, err := coll.Find(ctx, filter, opts...)
+	sqlDB, err := db.DB.DB()
 	if err != nil {
 		return err
 	}
-	defer cursor.Close(ctx)
-	return cursor.All(ctx, results)
+	return sqlDB.PingContext(ctx)
 }
 
-// UpdateRecord updates a single record in the specified collection
-func (db *Database) UpdateRecord(ctx context.Context, collection string, filter interface{}, update interface{}) (*mongo.UpdateResult, error) {
-	coll := db.GetCollection(collection)
-	return coll.UpdateOne(ctx, filter, update)
+// GormLogWriter is a custom log writer for GORM that uses zerolog
+type GormLogWriter struct{}
+
+// Printf implements the logger.Writer interface for GORM
+func (w *GormLogWriter) Printf(format string, args ...interface{}) {
+	log.Debug().Msgf(format, args...)
 }
 
-// UpdateRecords updates multiple records in the specified collection
-func (db *Database) UpdateRecords(ctx context.Context, collection string, filter interface{}, update interface{}) (*mongo.UpdateResult, error) {
-	coll := db.GetCollection(collection)
-	return coll.UpdateMany(ctx, filter, update)
-}
-
-// DeleteRecord deletes a single record from the specified collection
-func (db *Database) DeleteRecord(ctx context.Context, collection string, filter interface{}) (*mongo.DeleteResult, error) {
-	coll := db.GetCollection(collection)
-	return coll.DeleteOne(ctx, filter)
-}
-
-// DeleteRecords deletes multiple records from the specified collection
-func (db *Database) DeleteRecords(ctx context.Context, collection string, filter interface{}) (*mongo.DeleteResult, error) {
-	coll := db.GetCollection(collection)
-	return coll.DeleteMany(ctx, filter)
-}
-
-// CountDocuments counts documents in the specified collection
-func (db *Database) CountDocuments(ctx context.Context, collection string, filter interface{}) (int64, error) {
-	coll := db.GetCollection(collection)
-	return coll.CountDocuments(ctx, filter)
-}
-
-// RunMigrations runs any necessary database migrations/setup
+// RunMigrations runs auto-migrations for all models
 func (db *Database) RunMigrations() error {
-	// Create indexes or perform any necessary setup here
-	// For example, you might want to create indexes on commonly queried fields
-
+	// Add your models here when you create them
+	// For now, we'll just log that migrations would run
 	log.Info().Msg("Database migrations completed successfully")
 	return nil
+}
+
+// AutoMigrate runs migrations for the provided models
+func (db *Database) AutoMigrate(models ...interface{}) error {
+	return db.DB.AutoMigrate(models...)
+}
+
+// CreateRecord creates a new record in the database
+func (db *Database) CreateRecord(value interface{}) error {
+	return db.DB.Create(value).Error
+}
+
+// FindRecord finds a record by its primary key
+func (db *Database) FindRecord(dest interface{}, primaryKey interface{}) error {
+	return db.DB.First(dest, primaryKey).Error
+}
+
+// UpdateRecord updates a record in the database
+func (db *Database) UpdateRecord(value interface{}) error {
+	return db.DB.Save(value).Error
+}
+
+// DeleteRecord deletes a record from the database
+func (db *Database) DeleteRecord(value interface{}) error {
+	return db.DB.Delete(value).Error
 }

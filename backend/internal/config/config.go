@@ -32,12 +32,12 @@ type LoggerConfig struct {
 }
 
 type DatabaseConfig struct {
-	URI      string
 	Host     string
 	Port     string
 	Name     string
 	User     string
 	Password string
+	SSLMode  string
 }
 
 type JWTConfig struct {
@@ -78,12 +78,12 @@ func Load() *Config {
 			TimeFormat: time.RFC3339,
 		},
 		Database: DatabaseConfig{
-			URI:      getEnv("MONGO_URI", ""),
 			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnv("DB_PORT", "27017"),
+			Port:     getEnv("DB_PORT", "5432"),
 			Name:     getEnv("DB_NAME", "clipture"),
-			User:     getEnv("DB_USER", ""),
-			Password: getEnv("DB_PASSWORD", ""),
+			User:     getEnv("DB_USER", "postgres"),
+			Password: getEnv("DB_PASSWORD", "postgres"),
+			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
 		},
 		JWT: JWTConfig{
 			Secret: getEnv("JWT_SECRET", "development_secret"),

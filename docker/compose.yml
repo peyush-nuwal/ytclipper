@@ -1,7 +1,29 @@
 version: '3.8'
 
 services:
-  # Note: Using MongoDB Atlas cloud database instead of local MongoDB
+  # PostgreSQL 14 Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: clipture-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: clipture
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256 --auth-local=scram-sha-256'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - '5432:5432'
+    networks:
+      - clipture-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d clipture -U postgres']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
 
   # Backend API
   backend:
@@ -15,11 +37,15 @@ services:
       - ENV=production
       - LOG_LEVEL=info
       - LOG_PRETTY=false
-      - DB_NAME=${DB_NAME_PRODUCTION:-ytclipper_prod}
-      - MONGO_URI=${MONGO_URI_PRODUCTION}
-      - JWT_SECRET=${JWT_SECRET}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=clipture
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_SSL_MODE=disable
+      - JWT_SECRET=your_production_jwt_secret_here
       - JWT_EXPIRY=24h
-      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET}
+      - AUTH_JWT_SECRET=your_production_auth_secret_here
       - AUTH_JWT_EXPIRY_HOURS=72
       - AUTH_PASSWORD_RESET_EXPIRY=24h
       - AUTH_TOKEN_ISSUER=clipture-app
@@ -29,7 +55,9 @@ services:
       - TRACING_ENABLED=true
     ports:
       - '8080:8080'
-    # No dependencies needed - using external MongoDB Atlas
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - clipture-network
     healthcheck:
@@ -108,6 +136,8 @@ services:
       retries: 3
 
 volumes:
+  postgres_data:
+    driver: local
   redis_data:
     driver: local
 

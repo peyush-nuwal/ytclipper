@@ -1,7 +1,23 @@
 version: '3.8'
 
 services:
-  # Note: Using MongoDB Atlas for testing as well with separate test database
+  # Test Database
+  postgres-test:
+    image: postgres:14-alpine
+    container_name: clipture-postgres-test
+    environment:
+      POSTGRES_DB: clipture_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5434:5432'
+    networks:
+      - clipture-test-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d clipture_test -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # Redis for testing
   redis-test:
@@ -23,11 +39,17 @@ services:
       - ENV=test
       - LOG_LEVEL=warn
       - LOG_PRETTY=false
-      - DB_NAME=${DB_NAME_TEST:-ytclipper_test}
-      - MONGO_URI=${MONGO_URI_TEST}
+      - DB_HOST=postgres-test
+      - DB_PORT=5432
+      - DB_NAME=clipture_test
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_SSL_MODE=disable
     volumes:
       - ../backend:/app
-    # No dependencies needed - using external MongoDB Atlas
+    depends_on:
+      postgres-test:
+        condition: service_healthy
     networks:
       - clipture-test-network
     command: ['go', 'test', './...']
