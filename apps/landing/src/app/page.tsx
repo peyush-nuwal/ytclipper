@@ -110,16 +110,16 @@ export default function Home() {
     setEmail('');
   };
 
-  const scrollToWaitlist = () => {
-    setMobileMenuOpen(false);
-    emailInputRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
-    });
-    setTimeout(() => {
-      emailInputRef.current?.focus();
-    }, 500);
-  };
+  // const scrollToWaitlist = () => {
+  //   setMobileMenuOpen(false);
+  //   emailInputRef.current?.scrollIntoView({
+  //     behavior: 'smooth',
+  //     block: 'center',
+  //   });
+  //   setTimeout(() => {
+  //     emailInputRef.current?.focus();
+  //   }, 500);
+  // };
 
   const renderSuccessState = (message: string, isAlreadyRegistered = false) => (
     <div
