@@ -39,30 +39,6 @@ restart: ## Restart all services
 logs: ## Show production logs
 	docker compose -f docker/compose.yml logs -f
 
-# Database Only (following Monkeytype pattern)
-db-only: ## Start only database services
-	docker compose -f docker/compose.db-only.yml up -d
-
-db-only-down: ## Stop database-only services
-	docker compose -f docker/compose.db-only.yml down
-
-# Testing (new Monkeytype-inspired feature)
-test-env: ## Start testing environment
-	docker compose -f docker/compose.test.yml up --abort-on-container-exit
-
-test-env-build: ## Build and start testing environment
-	docker compose -f docker/compose.test.yml up --build --abort-on-container-exit
-
-# Database
-db-logs: ## Show database logs
-	docker compose -f docker/compose.yml logs -f postgres
-
-db-shell: ## Connect to database shell
-	docker compose -f docker/compose.yml exec postgres psql -U postgres -d clipture
-
-db-backup: ## Backup database
-	docker compose -f docker/compose.yml exec postgres pg_dump -U postgres clipture > backup_$$(date +%Y%m%d_%H%M%S).sql
-
 # Backend
 backend-shell: ## Connect to backend container shell
 	docker compose -f docker/compose.yml exec backend sh
@@ -84,15 +60,11 @@ frontend-logs: ## Show frontend logs
 clean: ## Clean up containers, networks, and volumes
 	docker compose -f docker/compose.yml down -v --remove-orphans
 	docker compose -f docker/compose.dev.yml down -v --remove-orphans
-	docker compose -f docker/compose.db-only.yml down -v --remove-orphans
-	docker compose -f docker/compose.test.yml down -v --remove-orphans
 	docker system prune -f
 
 clean-all: ## Clean up everything including images
 	docker compose -f docker/compose.yml down -v --remove-orphans --rmi all
 	docker compose -f docker/compose.dev.yml down -v --remove-orphans --rmi all
-	docker compose -f docker/compose.db-only.yml down -v --remove-orphans --rmi all
-	docker compose -f docker/compose.test.yml down -v --remove-orphans --rmi all
 	docker system prune -af
 
 # Health checks
@@ -122,5 +94,5 @@ setup: ## Setup development environment
 # Install dependencies
 install: ## Install dependencies for all apps
 	cd backend && go mod download
-	cd apps/app && npm install
-	cd apps/landing && npm install 
+	cd apps/app && pnpm install
+	cd apps/landing && pnpm install 
