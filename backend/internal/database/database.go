@@ -18,16 +18,23 @@ type Database struct {
 
 // NewDatabase creates a new GORM database connection
 func NewDatabase(cfg *config.Config) (*Database, error) {
-	// Build DSN (Data Source Name)
-	dsn := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Database.Host,
-		cfg.Database.Port,
-		cfg.Database.User,
-		cfg.Database.Password,
-		cfg.Database.Name,
-		cfg.Database.SSLMode,
-	)
+	var dsn string
+
+	// Check if DATABASE_URL is provided, otherwise build DSN from individual components
+	if cfg.Database.URL != "" {
+		dsn = cfg.Database.URL
+	} else {
+		// Build DSN (Data Source Name)
+		dsn = fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			cfg.Database.Host,
+			cfg.Database.Port,
+			cfg.Database.User,
+			cfg.Database.Password,
+			cfg.Database.Name,
+			cfg.Database.SSLMode,
+		)
+	}
 
 	// Configure GORM logger
 	gormLogger := logger.New(

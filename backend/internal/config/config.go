@@ -32,6 +32,7 @@ type LoggerConfig struct {
 }
 
 type DatabaseConfig struct {
+	URL      string // Full database URL (postgresql://user:pass@host:port/db)
 	Host     string
 	Port     string
 	Name     string
@@ -78,6 +79,7 @@ func Load() *Config {
 			TimeFormat: time.RFC3339,
 		},
 		Database: DatabaseConfig{
+			URL:      getEnv("DATABASE_URL", ""),
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),
 			Name:     getEnv("DB_NAME", "clipture"),
