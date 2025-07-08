@@ -41,7 +41,7 @@ func NewServer(cfg *config.Config) *Server {
 	}
 
 	// Use the router from the router package
-	r := router.SetupRouter(db)
+	r := router.SetupRouter(db, cfg)
 
 	srv := &Server{
 		router: r,

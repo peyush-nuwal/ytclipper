@@ -6,22 +6,14 @@ const manifest: Manifest = {
   version: '1.0.0',
   description: '__MSG_extensionDescription__',
   default_locale: 'en',
-  
-  permissions: [
-    'activeTab',
-    'storage',
-    'scripting',
-    'tabs'
-  ],
-  
-  host_permissions: [
-    'https://www.youtube.com/*',
-    'https://youtube.com/*'
-  ],
+
+  permissions: ['activeTab', 'storage', 'scripting', 'tabs'],
+
+  host_permissions: ['https://www.youtube.com/*', 'https://youtube.com/*'],
 
   background: {
     service_worker: 'src/background/index.js',
-    type: 'module'
+    type: 'module',
   },
 
   content_scripts: [
@@ -29,8 +21,8 @@ const manifest: Manifest = {
       matches: ['https://www.youtube.com/*', 'https://youtube.com/*'],
       js: ['src/content/index.js'],
       css: ['src/content/content.css'],
-      run_at: 'document_end'
-    }
+      run_at: 'document_end',
+    },
   ],
 
   action: {
@@ -40,23 +32,23 @@ const manifest: Manifest = {
       16: 'icon-16.png',
       32: 'icon-32.png',
       48: 'icon-48.png',
-      128: 'icon-128.png'
-    }
+      128: 'icon-128.png',
+    },
   },
 
   icons: {
     16: 'icon-16.png',
     32: 'icon-32.png',
     48: 'icon-48.png',
-    128: 'icon-128.png'
+    128: 'icon-128.png',
   },
 
   web_accessible_resources: [
     {
       resources: ['src/content-ui/index.js'],
-      matches: ['https://www.youtube.com/*', 'https://youtube.com/*']
-    }
-  ]
+      matches: ['https://www.youtube.com/*', 'https://youtube.com/*'],
+    },
+  ],
 };
 
-export default manifest; 
+export default manifest;

@@ -2,7 +2,8 @@
 
 ## ✅ What We've Accomplished
 
-Your Clipture project now has a **comprehensive development tooling setup** similar to [Monkeytype](https://github.com/monkeytypegame/monkeytype) and other modern open-source projects.
+Your Clipture project now has a **comprehensive development tooling setup** similar to
+[Monkeytype](https://github.com/monkeytypegame/monkeytype) and other modern open-source projects.
 
 ### 🛠️ Development Tools Added
 
@@ -165,7 +166,8 @@ pnpm install            # Reinstall dependencies
 
 ## 🎯 Success!
 
-Your Clipture project now has **enterprise-grade development tooling** that matches the quality of major open-source projects like Monkeytype. The setup provides:
+Your Clipture project now has **enterprise-grade development tooling** that matches the quality of major open-source
+projects like Monkeytype. The setup provides:
 
 - ✅ **Automated Quality Control**
 - ✅ **Modern Testing Framework**

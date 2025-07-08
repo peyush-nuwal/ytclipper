@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { Clock, User, Lock, Mail, Eye, EyeOff } from 'lucide-react';
+
 import type { LoginCredentials, RegisterCredentials } from '../types/auth';
 
 interface LoginScreenProps {
   onLogin: (
-    credentials: LoginCredentials
+    credentials: LoginCredentials,
   ) => Promise<{ success: boolean; error?: string }>;
   onRegister: (
-    credentials: RegisterCredentials
+    credentials: RegisterCredentials,
   ) => Promise<{ success: boolean; error?: string }>;
   isLoading: boolean;
   error: string | null;
@@ -60,31 +60,31 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   };
 
   return (
-    <div className="login-container">
-      <div className="login-header">
-        <div className="login-logo">
-          <Clock size={32} />
+    <div className='login-container'>
+      <div className='login-header'>
+        <div className='login-logo'>
+          <span>clock</span>
           <h1>YTClipper</h1>
         </div>
-        <p className="login-subtitle">
+        <p className='login-subtitle'>
           {mode === 'login'
             ? 'Sign in to start collecting timestamps'
             : 'Create your YTClipper account'}
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="login-form">
-        {error && <div className="error-message">{error}</div>}
+      <form onSubmit={handleSubmit} className='login-form'>
+        {error && <div className='error-message'>{error}</div>}
 
         {mode === 'register' && (
-          <div className="form-group">
-            <label htmlFor="name">Name (optional)</label>
-            <div className="input-wrapper">
-              <User size={16} className="input-icon" />
+          <div className='form-group'>
+            <label htmlFor='name'>Name (optional)</label>
+            <div className='input-wrapper'>
+              <span>user</span>
               <input
-                id="name"
-                type="text"
-                placeholder="Your name"
+                id='name'
+                type='text'
+                placeholder='Your name'
                 value={credentials.name}
                 onChange={e =>
                   setCredentials(prev => ({ ...prev, name: e.target.value }))
@@ -95,14 +95,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
         )}
 
-        <div className="form-group">
-          <label htmlFor="email">Email</label>
-          <div className="input-wrapper">
-            <Mail size={16} className="input-icon" />
+        <div className='form-group'>
+          <label htmlFor='email'>Email</label>
+          <div className='input-wrapper'>
+            <span>mail</span>
             <input
-              id="email"
-              type="email"
-              placeholder="your@email.com"
+              id='email'
+              type='email'
+              placeholder='your@email.com'
               value={credentials.email}
               onChange={e =>
                 setCredentials(prev => ({ ...prev, email: e.target.value }))
@@ -113,14 +113,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
         </div>
 
-        <div className="form-group">
-          <label htmlFor="password">Password</label>
-          <div className="input-wrapper">
-            <Lock size={16} className="input-icon" />
+        <div className='form-group'>
+          <label htmlFor='password'>Password</label>
+          <div className='input-wrapper'>
+            <span>lock</span>
             <input
-              id="password"
+              id='password'
               type={showPassword ? 'text' : 'password'}
-              placeholder="Enter your password"
+              placeholder='Enter your password'
               value={credentials.password}
               onChange={e =>
                 setCredentials(prev => ({ ...prev, password: e.target.value }))
@@ -129,23 +129,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               disabled={isLoading}
             />
             <button
-              type="button"
-              className="password-toggle"
+              type='button'
+              className='password-toggle'
               onClick={() => setShowPassword(!showPassword)}
               disabled={isLoading}
             >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPassword ? <span>eye-off</span> : <span>eye</span>}
             </button>
           </div>
         </div>
 
         <button
-          type="submit"
-          className="btn-primary login-submit"
+          type='submit'
+          className='btn-primary login-submit'
           disabled={isLoading || !credentials.email || !credentials.password}
         >
           {isLoading ? (
-            <div className="loading-spinner" />
+            <div className='loading-spinner' />
           ) : mode === 'login' ? (
             'Sign In'
           ) : (
@@ -153,13 +153,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           )}
         </button>
 
-        <div className="mode-switch">
+        <div className='mode-switch'>
           {mode === 'login' ? (
             <p>
               Don't have an account?{' '}
               <button
-                type="button"
-                className="link-button"
+                type='button'
+                className='link-button'
                 onClick={() => handleModeSwitch('register')}
                 disabled={isLoading}
               >
@@ -170,8 +170,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             <p>
               Already have an account?{' '}
               <button
-                type="button"
-                className="link-button"
+                type='button'
+                className='link-button'
                 onClick={() => handleModeSwitch('login')}
                 disabled={isLoading}
               >
@@ -182,7 +182,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         </div>
       </form>
 
-      <div className="login-footer">
+      <div className='login-footer'>
         <p>Connect to collect and sync your YouTube timestamps</p>
       </div>
     </div>

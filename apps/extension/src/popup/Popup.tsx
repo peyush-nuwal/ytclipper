@@ -1,14 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Clock,
-  Plus,
-  Settings,
-  RefreshCw,
-  Download,
-  LogOut,
-} from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+import React, { useCallback, useEffect, useState } from 'react';
+
 import { LoginScreen } from '../components/LoginScreen';
+import { useAuth } from '../hooks/useAuth';
 
 interface Timestamp {
   id: string;
@@ -38,11 +31,7 @@ export const Popup: React.FC = () => {
   });
   const [showAddForm, setShowAddForm] = useState(false);
 
-  useEffect(() => {
-    initializePopup();
-  }, []);
-
-  const initializePopup = async () => {
+  const initializePopup = useCallback(async () => {
     try {
       // Get current active tab
       const tabs = await chrome.tabs.query({
@@ -70,7 +59,11 @@ export const Popup: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    initializePopup();
+  }, [initializePopup]);
 
   const extractVideoId = (url: string): string | undefined => {
     const match = url.match(/[?&]v=([^&]+)/);
@@ -100,7 +93,7 @@ export const Popup: React.FC = () => {
           { type: 'GET_CURRENT_TIME' },
           response => {
             resolve(response?.currentTime || 0);
-          }
+          },
         );
       } else {
         resolve(0);
@@ -174,22 +167,22 @@ export const Popup: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="popup-container">
-        <div className="loading">Loading...</div>
+      <div className='popup-container'>
+        <div className='loading'>Loading...</div>
       </div>
     );
   }
 
   if (!currentTab || !currentTab.videoId) {
     return (
-      <div className="popup-container">
-        <div className="header">
-          <div className="logo">
-            <Clock size={24} />
+      <div className='popup-container'>
+        <div className='header'>
+          <div className='logo'>
+            <span>clock</span>
             <span>YTClipper</span>
           </div>
         </div>
-        <div className="not-youtube">
+        <div className='not-youtube'>
           <p>Navigate to a YouTube video to start collecting timestamps.</p>
         </div>
       </div>
@@ -197,73 +190,73 @@ export const Popup: React.FC = () => {
   }
 
   return (
-    <div className="popup-container">
-      <div className="header">
-        <div className="logo">
-          <Clock size={20} />
+    <div className='popup-container'>
+      <div className='header'>
+        <div className='logo'>
+          <span>clock</span>
           <span>YTClipper</span>
         </div>
-        <div className="header-actions">
+        <div className='header-actions'>
           <button
-            className="icon-button"
+            className='icon-button'
             onClick={() => setShowAddForm(!showAddForm)}
-            title="Add timestamp"
+            title='Add timestamp'
           >
-            <Plus size={16} />
+            <span>plus</span>
           </button>
-          <button className="icon-button" title="Sync with backend">
-            <RefreshCw size={16} />
+          <button className='icon-button' title='Sync with backend'>
+            <span>refresh-cw</span>
           </button>
-          <button className="icon-button" title="Settings">
-            <Settings size={16} />
+          <button className='icon-button' title='Settings'>
+            <span>settings</span>
           </button>
           <button
-            className="icon-button"
+            className='icon-button'
             onClick={auth.logout}
             title={`Logout (${auth.user?.email})`}
           >
-            <LogOut size={16} />
+            <span>log-out</span>
           </button>
         </div>
       </div>
 
-      <div className="video-info">
+      <div className='video-info'>
         <h3>{currentTab.title}</h3>
         <p>{timestamps.length} timestamps collected</p>
       </div>
 
       {showAddForm && (
-        <div className="add-form">
+        <div className='add-form'>
           <input
-            type="text"
-            placeholder="Timestamp title (optional)"
+            type='text'
+            placeholder='Timestamp title (optional)'
             value={newTimestamp.title}
             onChange={e =>
               setNewTimestamp(prev => ({ ...prev, title: e.target.value }))
             }
           />
           <textarea
-            placeholder="Notes (optional)"
+            placeholder='Notes (optional)'
             value={newTimestamp.note}
             onChange={e =>
               setNewTimestamp(prev => ({ ...prev, note: e.target.value }))
             }
           />
           <input
-            type="text"
-            placeholder="Tags (comma-separated)"
+            type='text'
+            placeholder='Tags (comma-separated)'
             value={newTimestamp.tags}
             onChange={e =>
               setNewTimestamp(prev => ({ ...prev, tags: e.target.value }))
             }
           />
-          <div className="form-actions">
-            <button onClick={handleAddTimestamp} className="btn-primary">
+          <div className='form-actions'>
+            <button onClick={handleAddTimestamp} className='btn-primary'>
               Add Timestamp
             </button>
             <button
               onClick={() => setShowAddForm(false)}
-              className="btn-secondary"
+              className='btn-secondary'
             >
               Cancel
             </button>
@@ -271,29 +264,29 @@ export const Popup: React.FC = () => {
         </div>
       )}
 
-      <div className="timestamps-list">
+      <div className='timestamps-list'>
         {timestamps.length === 0 ? (
-          <div className="empty-state">
+          <div className='empty-state'>
             <p>No timestamps yet. Click + to add your first timestamp!</p>
           </div>
         ) : (
           timestamps.map(timestamp => (
-            <div key={timestamp.id} className="timestamp-item">
+            <div key={timestamp.id} className='timestamp-item'>
               <div
-                className="timestamp-time"
+                className='timestamp-time'
                 onClick={() => jumpToTimestamp(timestamp.timestamp)}
               >
                 {formatTime(timestamp.timestamp)}
               </div>
-              <div className="timestamp-content">
-                <div className="timestamp-title">{timestamp.title}</div>
+              <div className='timestamp-content'>
+                <div className='timestamp-title'>{timestamp.title}</div>
                 {timestamp.note && (
-                  <div className="timestamp-note">{timestamp.note}</div>
+                  <div className='timestamp-note'>{timestamp.note}</div>
                 )}
                 {timestamp.tags.length > 0 && (
-                  <div className="timestamp-tags">
+                  <div className='timestamp-tags'>
                     {timestamp.tags.map(tag => (
-                      <span key={tag} className="tag">
+                      <span key={tag} className='tag'>
                         {tag}
                       </span>
                     ))}
@@ -305,9 +298,9 @@ export const Popup: React.FC = () => {
         )}
       </div>
 
-      <div className="footer">
-        <button className="btn-secondary" title="Export timestamps">
-          <Download size={14} />
+      <div className='footer'>
+        <button className='btn-secondary' title='Export timestamps'>
+          <span>download</span>
           Export
         </button>
       </div>

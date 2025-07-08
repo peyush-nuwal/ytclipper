@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
             details: { type: 'security_violation' },
           },
         },
-        { status: 429 }
+        { status: 429 },
       );
     }
 
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
               message: 'Request body too large',
             },
           },
-          { status: 413 }
+          { status: 413 },
         );
       }
       body = JSON.parse(text);
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
             message: 'Invalid JSON format',
           },
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
             })),
           },
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
             message: 'Please enter a valid email address',
           },
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -103,12 +103,12 @@ export async function POST(request: NextRequest) {
           await notifyDiscord(
             validatedData.email,
             new Date().toISOString(),
-            true
+            true,
           );
         } catch (error) {
           console.error(
             'Failed to send Discord notification for duplicate signup:',
-            error
+            error,
           );
         }
 
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
               details: { type: 'already_registered' },
             },
           },
-          { status: 409 }
+          { status: 409 },
         );
       }
 
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
               'Unable to add you to the waitlist right now. Please try again later.',
           },
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.error(
         'Failed to send Discord notification for new signup:',
-        error
+        error,
       );
     }
 
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
           'X-RateLimit-Remaining': `${securityCheck.remainingRequests ?? 0}`,
           'X-RateLimit-Reset': `${securityCheck.resetTime ?? 0}`,
         },
-      }
+      },
     );
   } catch (error) {
     console.error('Error adding to waitlist:', error);
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
           message: 'Something went wrong. Please try again later.',
         },
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -198,7 +198,7 @@ export async function GET(request: NextRequest) {
             message: 'Too many requests. Please try again later.',
           },
         },
-        { status: 429 }
+        { status: 429 },
       );
     }
 
@@ -219,7 +219,7 @@ export async function GET(request: NextRequest) {
           'X-RateLimit-Remaining': `${securityCheck.remainingRequests ?? 0}`,
           'X-RateLimit-Reset': `${securityCheck.resetTime ?? 0}`,
         },
-      }
+      },
     );
   } catch (error) {
     console.error('Error fetching waitlist status:', error);
@@ -231,7 +231,7 @@ export async function GET(request: NextRequest) {
           message: 'Unable to fetch waitlist status right now',
         },
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

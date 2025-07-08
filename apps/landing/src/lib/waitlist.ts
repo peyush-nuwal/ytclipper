@@ -18,7 +18,7 @@ export const waitlistSchema = z.object({
     .max(100, 'Name must not exceed 100 characters')
     .regex(
       /^[a-zA-Z\s'-]+$/,
-      'Name can only contain letters, spaces, hyphens, and apostrophes'
+      'Name can only contain letters, spaces, hyphens, and apostrophes',
     )
     .optional(),
   source: z
@@ -26,7 +26,7 @@ export const waitlistSchema = z.object({
     .max(50, 'Source must not exceed 50 characters')
     .regex(
       /^[a-zA-Z0-9_-]+$/,
-      'Source can only contain letters, numbers, underscores, and hyphens'
+      'Source can only contain letters, numbers, underscores, and hyphens',
     )
     .optional(),
 });
@@ -35,7 +35,7 @@ export type WaitlistInput = z.infer<typeof waitlistSchema>;
 
 export class WaitlistService {
   static async addToWaitlist(
-    data: WaitlistInput
+    data: WaitlistInput,
   ): Promise<{ id: number | null; success: boolean; error?: string }> {
     try {
       const existing = await prisma.waitlist.findUnique({

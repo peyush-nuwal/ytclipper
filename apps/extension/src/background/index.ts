@@ -3,6 +3,16 @@ import { logger } from '@ytclipper/extension-dev-utils';
 // Background service worker for YTClipper Chrome Extension
 logger.info('Background service worker started');
 
+// TypeScript interfaces
+interface Timestamp {
+  id: string;
+  timestamp: number;
+  title: string;
+  note: string;
+  tags: string[];
+  createdAt: string;
+}
+
 // Handle extension installation
 chrome.runtime.onInstalled.addListener(details => {
   logger.info('Extension installed:', details.reason);
@@ -134,7 +144,7 @@ async function handleSyncData() {
 }
 
 // Sync single timestamp with backend
-async function syncWithBackend(videoId: string, timestamp: any) {
+async function syncWithBackend(videoId: string, timestamp: Timestamp) {
   const settings = await chrome.storage.sync.get(['apiEndpoint']);
   const authData = await chrome.storage.local.get(['authToken']);
 

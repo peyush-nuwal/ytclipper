@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
+import { logger } from '@ytclipper/extension-dev-utils';
+
+import { authService } from '../services/authService';
 import type {
   AuthState,
   LoginCredentials,
   RegisterCredentials,
 } from '../types/auth';
-import { authService } from '../services/authService';
-import { logger } from '@ytclipper/extension-dev-utils';
 
 export const useAuth = () => {
   const [authState, setAuthState] = useState<AuthState>({

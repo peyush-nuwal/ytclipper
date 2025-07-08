@@ -14,7 +14,7 @@ export function middleware(request: NextRequest) {
   // Only allow embedding on same origin
   response.headers.set(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none';"
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none';",
   );
 
   // API route specific security
@@ -22,12 +22,12 @@ export function middleware(request: NextRequest) {
     // Add CORS headers for API routes
     response.headers.set(
       'Access-Control-Allow-Origin',
-      request.headers.get('origin') || '*'
+      request.headers.get('origin') || '*',
     );
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     response.headers.set(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization'
+      'Content-Type, Authorization',
     );
     response.headers.set('Access-Control-Max-Age', '86400');
 
@@ -39,7 +39,7 @@ export function middleware(request: NextRequest) {
     // Additional API security headers
     response.headers.set(
       'Cache-Control',
-      'no-store, no-cache, must-revalidate'
+      'no-store, no-cache, must-revalidate',
     );
     response.headers.set('Pragma', 'no-cache');
   }

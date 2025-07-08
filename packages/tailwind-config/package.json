@@ -1,0 +1,13 @@
+{
+  "name": "@ytclipper/tailwind-config",
+  "version": "0.0.0",
+  "main": "./tailwind.config.js",
+  "types": "./tailwind.config.d.ts",
+  "files": [
+    "tailwind.config.js",
+    "tailwind.config.d.ts"
+  ],
+  "devDependencies": {
+    "tailwindcss": "^4.0.0-alpha.20"
+  }
+}

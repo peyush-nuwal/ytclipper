@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
             email: entry.email,
             source: entry.source ?? '',
             createdAt: entry.createdAt.toISOString(),
-          })
+          }),
         );
 
         const successResponse: SuccessResponse<WaitlistAdminEntriesData> = {

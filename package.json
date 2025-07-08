@@ -1,5 +1,5 @@
 {
-  "name": "clipture",
+  "name": "ytclipper",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -16,6 +16,10 @@
     "lint:fix": "turbo run lint:fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,scss,md,mdx}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,scss,md,mdx}\"",
+    "format:app": "pnpm --filter app format",
+    "format:app:check": "pnpm --filter app format:check",
+    "format:extension": "pnpm --filter @ytclipper/extension format",
+    "format:extension:check": "pnpm --filter @ytclipper/extension format:check",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
     "type-check": "turbo run type-check",
@@ -27,6 +31,8 @@
   "devDependencies": {
     "@commitlint/cli": "^18.4.3",
     "@commitlint/config-conventional": "^18.4.3",
+    "@ytclipper/eslint-config": "workspace:*",
+    "@ytclipper/prettier-config": "workspace:*",
     "concurrently": "^9.2.0",
     "husky": "^8.0.3",
     "lint-staged": "^15.2.0",

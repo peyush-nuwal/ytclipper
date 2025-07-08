@@ -72,11 +72,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang='en'>
       <body className={`${inter.variable} antialiased`}>
         {children}
         <Analytics />
-        <GoogleAnalytics gaId="G-Z07N440G59" />
+        <GoogleAnalytics gaId='G-Z07N440G59' />
       </body>
     </html>
   );

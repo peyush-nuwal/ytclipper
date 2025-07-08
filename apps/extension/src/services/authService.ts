@@ -1,10 +1,11 @@
+import { logger } from '@ytclipper/extension-dev-utils';
+
 import type {
   LoginCredentials,
   RegisterCredentials,
   AuthResponse,
   User,
 } from '../types/auth';
-import { logger } from '@ytclipper/extension-dev-utils';
 
 class AuthService {
   // No backend endpoint needed for now
@@ -20,7 +21,7 @@ class AuthService {
       name: credentials.email.split('@')[0],
       createdAt: new Date().toISOString(),
     };
-    const fakeToken = 'fake-token-' + Math.random().toString(36).slice(2);
+    const fakeToken = `fake-token-${Math.random().toString(36).slice(2)}`;
     await this.storeAuthData(fakeToken, fakeUser);
     return {
       success: true,
@@ -40,7 +41,7 @@ class AuthService {
       name: credentials.name || credentials.email.split('@')[0],
       createdAt: new Date().toISOString(),
     };
-    const fakeToken = 'fake-token-' + Math.random().toString(36).slice(2);
+    const fakeToken = `fake-token-${Math.random().toString(36).slice(2)}`;
     await this.storeAuthData(fakeToken, fakeUser);
     return {
       success: true,

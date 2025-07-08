@@ -1,11 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { createRoot } from 'react-dom/client';
-import { Clock, Plus, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 
-interface TimestampCollector {
-  isVisible: boolean;
-  currentTime: number;
-}
+import { createRoot } from 'react-dom/client';
 
 const TimestampCollector: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -41,7 +36,7 @@ const TimestampCollector: React.FC = () => {
             note,
           },
         },
-        '*'
+        '*',
       );
 
       // Reset form and hide
@@ -93,7 +88,7 @@ const TimestampCollector: React.FC = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Clock size={20} color="#ff6b35" />
+          <span>clock</span>
           <span style={{ fontWeight: '600', color: '#1a1a1a' }}>
             Add Timestamp
           </span>
@@ -109,7 +104,7 @@ const TimestampCollector: React.FC = () => {
             color: '#666',
           }}
         >
-          <X size={16} />
+          <span>x</span>
         </button>
       </div>
 
@@ -134,8 +129,8 @@ const TimestampCollector: React.FC = () => {
 
         <div style={{ marginBottom: '12px' }}>
           <input
-            type="text"
-            placeholder="Timestamp title (optional)"
+            type='text'
+            placeholder='Timestamp title (optional)'
             value={title}
             onChange={e => setTitle(e.target.value)}
             style={{
@@ -151,7 +146,7 @@ const TimestampCollector: React.FC = () => {
 
         <div style={{ marginBottom: '16px' }}>
           <textarea
-            placeholder="Notes about this timestamp..."
+            placeholder='Notes about this timestamp...'
             value={note}
             onChange={e => setNote(e.target.value)}
             style={{
@@ -206,7 +201,7 @@ const TimestampCollector: React.FC = () => {
   );
 };
 
-// Create and inject the component
+// Create and mount the component
 const createTimestampCollector = () => {
   const container = document.createElement('div');
   container.id = 'ytclipper-timestamp-collector';
@@ -214,11 +209,15 @@ const createTimestampCollector = () => {
 
   const root = createRoot(container);
   root.render(<TimestampCollector />);
+
+  return {
+    container,
+    root,
+  };
 };
 
-// Initialize when the script loads
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', createTimestampCollector);
-} else {
-  createTimestampCollector();
-}
+// Export for proper React Fast Refresh support
+export { TimestampCollector, createTimestampCollector };
+
+// Initialize when content script requests it
+createTimestampCollector();

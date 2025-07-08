@@ -16,8 +16,18 @@ type Config struct {
 	Database   DatabaseConfig
 	JWT        JWTConfig
 	Auth       AuthConfig
+	Auth0      Auth0Config
 	API        APIConfig
 	Monitoring MonitoringConfig
+}
+
+type Auth0Config struct {
+	Domain       string
+	ClientID     string
+	ClientSecret string
+	CallbackURL  string
+	Audience     string
+	Scope        string
 }
 
 type ServerConfig struct {
@@ -69,6 +79,14 @@ func Load() *Config {
 	}
 
 	return &Config{
+		Auth0: Auth0Config{
+			Domain:       getEnv("AUTH0_DOMAIN", ""),
+			ClientID:     getEnv("AUTH0_CLIENT_ID", ""),
+			ClientSecret: getEnv("AUTH0_CLIENT_SECRET", ""),
+			CallbackURL:  getEnv("AUTH0_CALLBACK_URL", "http://localhost:8080/callback"),
+			Audience:     getEnv("AUTH0_AUDIENCE", ""),
+			Scope:        getEnv("AUTH0_SCOPE", "openid profile email"),
+		},
 		Server: ServerConfig{
 			Port: getEnv("PORT", "8080"),
 			Env:  getEnv("ENV", "development"),
