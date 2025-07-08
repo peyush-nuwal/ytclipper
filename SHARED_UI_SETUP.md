@@ -1,6 +1,7 @@
 # YTClipper Shared UI Setup
 
-This project now includes a shared UI package (`@ytclipper/ui`) that provides consistent design components across all applications (app, landing, extension).
+This project now includes a shared UI package (`@ytclipper/ui`) that provides consistent design components across all
+applications (app, landing, extension).
 
 ## ✅ What's Been Set Up
 
@@ -144,4 +145,5 @@ cd packages/ui && pnpm dev
 3. **Build**: Package builds automatically
 4. **Deploy**: All apps use the same component version
 
-The setup eliminates the need to configure shadcn/ui separately in each app and ensures design consistency across your entire project!
+The setup eliminates the need to configure shadcn/ui separately in each app and ensures design consistency across your
+entire project!

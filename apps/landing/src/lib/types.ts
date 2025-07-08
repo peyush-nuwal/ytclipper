@@ -55,13 +55,13 @@ export interface WaitlistAdminHelpData {
 
 // Type guards
 export function isSuccessResponse<T>(
-  response: ApiResponse<T>
+  response: ApiResponse<T>,
 ): response is SuccessResponse<T> {
   return response.success === true;
 }
 
 export function isErrorResponse(
-  response: ApiResponse
+  response: ApiResponse,
 ): response is ErrorResponse {
   return response.success === false;
 }

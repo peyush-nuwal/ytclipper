@@ -1,0 +1,27 @@
+{
+  "name": "@ytclipper/eslint-config",
+  "version": "0.0.1",
+  "description": "Shared ESLint configuration for YTClipper projects",
+  "main": "index.js",
+  "type": "module",
+  "files": [
+    "index.js",
+    "react.js"
+  ],
+  "dependencies": {
+    "@eslint/js": "^9.30.0",
+    "@typescript-eslint/eslint-plugin": "^8.35.1",
+    "@typescript-eslint/parser": "^8.35.1",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "globals": "^16.2.0",
+    "typescript-eslint": "^8.35.1"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0",
+    "typescript": "^5.0.0"
+  }
+}

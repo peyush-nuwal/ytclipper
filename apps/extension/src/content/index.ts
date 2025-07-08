@@ -1,13 +1,23 @@
 import { logger } from '@ytclipper/extension-dev-utils';
 
-// Content script for YouTube pages
-logger.info('YTClipper content script loaded');
+// TypeScript interfaces
+interface Timestamp {
+  id: string;
+  timestamp: number;
+  title: string;
+  note: string;
+  tags: string[];
+  createdAt: string;
+}
 
 interface YouTubePageData {
   videoId: string;
   title: string;
   currentTime: number;
 }
+
+// Content script for YouTube pages
+logger.info('YTClipper content script loaded');
 
 class YouTubeHandler {
   private player: HTMLVideoElement | null = null;
@@ -238,7 +248,7 @@ class YouTubeHandler {
     }
   }
 
-  private displayTimestamps(timestamps: any[]) {
+  private displayTimestamps(timestamps: Timestamp[]) {
     // Remove existing timestamp markers
     document
       .querySelectorAll('.ytclipper-timestamp')
@@ -253,7 +263,7 @@ class YouTubeHandler {
     }
   }
 
-  private addTimestampMarker(timestamp: any, container: HTMLElement) {
+  private addTimestampMarker(timestamp: Timestamp, container: HTMLElement) {
     const marker = document.createElement('div');
     marker.className = 'ytclipper-timestamp';
     marker.title = `${timestamp.title} - ${this.formatTime(timestamp.timestamp)}`;
@@ -311,7 +321,7 @@ class YouTubeHandler {
     if (!this.player || !this.currentVideoId) return null;
 
     const titleElement = document.querySelector(
-      'h1.ytd-watch-metadata yt-formatted-string'
+      'h1.ytd-watch-metadata yt-formatted-string',
     );
     const title = titleElement?.textContent || 'Unknown Video';
 
@@ -335,7 +345,7 @@ class YouTubeHandler {
 
   private showNotification(
     message: string,
-    type: 'success' | 'error' = 'success'
+    type: 'success' | 'error' = 'success',
   ) {
     const notification = document.createElement('div');
     notification.className = 'ytclipper-notification';

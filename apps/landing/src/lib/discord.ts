@@ -1,7 +1,7 @@
 export async function notifyDiscord(
   email: string,
   createdAt: string,
-  isDuplicate: boolean = false
+  isDuplicate: boolean = false,
 ) {
   // Use different webhook URLs for regular and repeat signups
   const webhookUrl = isDuplicate
@@ -10,7 +10,7 @@ export async function notifyDiscord(
 
   if (!webhookUrl) {
     console.error(
-      `Discord webhook URL is not set in environment variables. Missing: ${isDuplicate ? 'DISCORD_WEBHOOK_URL_REPEAT' : 'DISCORD_WEBHOOK_URL'}`
+      `Discord webhook URL is not set in environment variables. Missing: ${isDuplicate ? 'DISCORD_WEBHOOK_URL_REPEAT' : 'DISCORD_WEBHOOK_URL'}`,
     );
     return;
   }

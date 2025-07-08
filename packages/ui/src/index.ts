@@ -1,7 +1,7 @@
 // import "./styles/globals.css"
 // Export components
-export { Button, buttonVariants } from "./components/button"
-export { 
+export { Button, buttonVariants } from './components/button';
+export {
   Card,
   CardHeader,
   CardFooter,
@@ -9,10 +9,10 @@ export {
   CardAction,
   CardDescription,
   CardContent,
-} from "./components/card"
+} from './components/card';
 
 // Export utilities
-export { cn } from "./lib/utils"
+export { cn } from './lib/utils';
 
 // Export types
-export type { ButtonProps } from "./components/button"
+export type { ButtonProps } from './components/button';

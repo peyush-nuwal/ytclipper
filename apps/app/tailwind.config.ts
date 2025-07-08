@@ -1,5 +1,5 @@
-import type { Config } from 'tailwindcss'
-import baseConfig from '@ytclipper/tailwind-config'
+import baseConfig from '@ytclipper/tailwind-config';
+import type { Config } from 'tailwindcss';
 
 const config: Config = {
   ...baseConfig,
@@ -60,6 +60,6 @@ const config: Config = {
     },
   },
   plugins: [],
-}
+};
 
-export default config
+export default config;

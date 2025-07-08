@@ -1,6 +1,7 @@
 # Development Guide
 
-This guide explains how to work with Clipture's development environment, which follows modern best practices similar to projects like [Monkeytype](https://github.com/monkeytypegame/monkeytype).
+This guide explains how to work with Clipture's development environment, which follows modern best practices similar to
+projects like [Monkeytype](https://github.com/monkeytypegame/monkeytype).
 
 ## 🛠️ Development Stack
 

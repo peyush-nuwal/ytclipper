@@ -29,13 +29,13 @@ export interface Manifest {
 }
 
 export const logger = {
-  info: (message: string, ...args: any[]) => {
+  info: (message: string, ...args: unknown[]) => {
     console.log(`[YTClipper Extension] ${message}`, ...args);
   },
-  warn: (message: string, ...args: any[]) => {
+  warn: (message: string, ...args: unknown[]) => {
     console.warn(`[YTClipper Extension] ${message}`, ...args);
   },
-  error: (message: string, ...args: any[]) => {
+  error: (message: string, ...args: unknown[]) => {
     console.error(`[YTClipper Extension] ${message}`, ...args);
-  }
-}; 
+  },
+};

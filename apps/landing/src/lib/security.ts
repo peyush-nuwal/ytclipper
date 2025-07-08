@@ -55,7 +55,7 @@ export function isValidEmail(email: string): boolean {
 
 export function detectBot(
   userAgent?: string,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
 ): boolean {
   if (!userAgent) return true; // No user agent = likely bot
 
@@ -78,7 +78,7 @@ export function detectBot(
 
   const browserHeaders = ['accept', 'accept-language', 'accept-encoding'];
   const missingHeaders = browserHeaders.filter(
-    header => !headers[header.toLowerCase()]
+    header => !headers[header.toLowerCase()],
   );
 
   return missingHeaders.length >= 2; // Missing 2+ browser headers = likely bot
@@ -87,7 +87,7 @@ export function detectBot(
 export function checkRateLimit(
   ip: string,
   userAgent?: string,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
 ): SecurityResult {
   const now = Date.now();
 
@@ -132,7 +132,7 @@ export function checkRateLimit(
   // Track requests per minute for this IP
   const currentRequests = ipData?.requests || [];
   const recentRequests = currentRequests.filter(
-    time => now - time < BOT_DETECTION_WINDOW
+    time => now - time < BOT_DETECTION_WINDOW,
   );
 
   if (recentRequests.length >= MAX_REQUESTS_PER_MINUTE) {
@@ -266,7 +266,7 @@ export function cleanupSecurityData(): void {
   for (const [ip, data] of ipStore.entries()) {
     if (!data.permanentlyBlocked) {
       const recentRequests = data.requests.filter(
-        time => now - time < BOT_DETECTION_WINDOW * 10
+        time => now - time < BOT_DETECTION_WINDOW * 10,
       );
       if (recentRequests.length === 0 && data.suspiciousActivity === 0) {
         ipStore.delete(ip);

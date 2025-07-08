@@ -1,6 +1,7 @@
 {
   "name": "@ytclipper/ui",
   "version": "0.0.1",
+  "type": "module",
   "description": "Shared UI components for YTClipper",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -18,7 +19,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && vite build",
     "dev": "vite build --watch",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -32,8 +33,11 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.6.0",
+    "@ytclipper/eslint-config": "workspace:*",
+    "@ytclipper/prettier-config": "workspace:*",
     "@ytclipper/tailwind-config": "workspace:*",
     "autoprefixer": "^10.4.20",
+    "eslint": "^9.30.0",
     "postcss": "^8.4.49",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

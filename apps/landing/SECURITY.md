@@ -1,6 +1,7 @@
 # Security Implementation for YT Clipper Waitlist
 
-This document outlines the comprehensive security measures implemented to protect the waitlist API from abuse, bot attacks, and spam.
+This document outlines the comprehensive security measures implemented to protect the waitlist API from abuse, bot
+attacks, and spam.
 
 ## 🛡️ Security Features Overview
 
