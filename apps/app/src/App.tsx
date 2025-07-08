@@ -1,9 +1,25 @@
-import { Button, Card, CardHeader, CardTitle, CardContent, CardDescription } from '@ytclipper/ui'
+import { 
+  
+  
+  Button, Card, CardHeader, CardTitle, CardContent, CardDescription } from '@ytclipper/ui'
 
 function App() {
   return (
     <div className="p-8 space-y-6">
       <h1 className="text-3xl font-bold text-foreground">YT Clipper</h1>
+<div className="test-class">
+  This should have red background if Tailwind is working
+</div>
+
+
+
+
+
+
+
+
+
+
       
       <Card className="max-w-md">
         <CardHeader>

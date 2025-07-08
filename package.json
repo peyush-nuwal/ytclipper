@@ -1,5 +1,5 @@
 {
-  "name": "clipture",
+  "name": "ytclipper",
   "private": true,
   "workspaces": [
     "apps/*",

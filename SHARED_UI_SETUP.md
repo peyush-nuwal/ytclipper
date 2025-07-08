@@ -5,6 +5,7 @@ This project now includes a shared UI package (`@ytclipper/ui`) that provides co
 ## ✅ What's Been Set Up
 
 ### 1. Shared UI Package (`packages/ui`)
+
 - Built with **shadcn/ui** and **Tailwind CSS**
 - TypeScript support with proper types
 - CSS custom properties for theming
@@ -12,13 +13,16 @@ This project now includes a shared UI package (`@ytclipper/ui`) that provides co
 - Exports both ESM and CommonJS formats
 
 ### 2. Automated Component Management
+
 - **`./add-component.sh`** - Add new shadcn/ui components
 - **`./update-exports.sh`** - Automatically update exports
 
 ### 3. Cross-App Integration
+
 All apps now depend on `@ytclipper/ui`:
+
 - ✅ `apps/app` - React/Vite app
-- ✅ `apps/landing` - Next.js app  
+- ✅ `apps/landing` - Next.js app
 - ✅ `apps/extension` - Chrome extension
 
 ## 🚀 Usage
@@ -38,9 +42,10 @@ All apps now depend on `@ytclipper/ui`:
 ### Using Components in Apps
 
 **React/Vite App (`apps/app`):**
+
 ```tsx
-import { Button, Card, CardHeader, CardContent } from '@ytclipper/ui'
-import '@ytclipper/ui/styles'
+import { Button, Card, CardHeader, CardContent } from '@ytclipper/ui';
+import '@ytclipper/ui/styles';
 
 function App() {
   return (
@@ -52,27 +57,29 @@ function App() {
         <Button>Click me</Button>
       </CardContent>
     </Card>
-  )
+  );
 }
 ```
 
 **Next.js App (`apps/landing`):**
+
 ```tsx
-import { Button } from '@ytclipper/ui'
-import '@ytclipper/ui/styles'
+import { Button } from '@ytclipper/ui';
+import '@ytclipper/ui/styles';
 
 export default function Page() {
-  return <Button>Landing Button</Button>
+  return <Button>Landing Button</Button>;
 }
 ```
 
 **Chrome Extension (`apps/extension`):**
+
 ```tsx
-import { Button } from '@ytclipper/ui'
+import { Button } from '@ytclipper/ui';
 // Styles imported in content script
 
 function Popup() {
-  return <Button>Extension Button</Button>
+  return <Button>Extension Button</Button>;
 }
 ```
 
@@ -99,6 +106,7 @@ packages/ui/
 ## 🎨 Design System
 
 The shared UI includes:
+
 - **CSS Variables** for consistent theming
 - **Dark mode** support via CSS classes
 - **Responsive** design utilities

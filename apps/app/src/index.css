@@ -118,3 +118,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+.test-class {
+  @apply bg-red-500 text-white p-4;
+}
