@@ -5,13 +5,15 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/shubhamku044/clipture/internal/auth"
+	"github.com/shubhamku044/clipture/internal/config"
 	"github.com/shubhamku044/clipture/internal/database"
 	"github.com/shubhamku044/clipture/internal/handlers"
 	"github.com/shubhamku044/clipture/internal/middleware"
 )
 
 // SetupRouter sets up the router with all routes and middleware
-func SetupRouter(db *database.Database) *gin.Engine {
+func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 	r := gin.Default()
 
 	// Add middlewares
@@ -26,6 +28,12 @@ func SetupRouter(db *database.Database) *gin.Engine {
 	r.Use(middleware.ResponseFormatter())
 	r.Use(middleware.RequestLogger())
 
+	// Initialize Auth0 service
+	auth0Service, err := auth.NewAuth0Service(&cfg.Auth0)
+	if err != nil {
+		panic("Failed to initialize Auth0 service: " + err.Error())
+	}
+
 	// Add NoRoute handler for proper 404 responses
 	r.NoRoute(func(c *gin.Context) {
 		middleware.RespondWithError(c, http.StatusNotFound, "NOT_FOUND", "The requested resource could not be found", gin.H{
@@ -36,6 +44,11 @@ func SetupRouter(db *database.Database) *gin.Engine {
 	// Root health check endpoints
 	r.GET("/health", handlers.HealthCheck)
 	r.GET("/db-health", handlers.DBHealthCheck(db))
+
+	// Auth0 routes
+	r.GET("/login", auth0Service.LoginHandler())
+	r.GET("/callback", auth0Service.CallbackHandler())
+	r.GET("/logout", auth0Service.LogoutHandler())
 
 	// Root welcome page
 	r.GET("/", func(c *gin.Context) {
@@ -75,21 +88,16 @@ func SetupRouter(db *database.Database) *gin.Engine {
 		v1.GET("/db-health", handlers.DBHealthCheck(db))
 
 		// Auth routes (to be implemented)
-		auth := v1.Group("/auth")
+		authRoutes := v1.Group("/auth")
 		{
-			auth.POST("/register", func(c *gin.Context) {
-				middleware.RespondWithOK(c, gin.H{"message": "Registration endpoint - to be implemented"})
-			})
-			auth.POST("/login", func(c *gin.Context) {
-				middleware.RespondWithOK(c, gin.H{"message": "Login endpoint - to be implemented"})
-			})
+			authRoutes.GET("/user", auth0Service.GetUserInfo())
+			authRoutes.GET("/logout", auth0Service.LogoutHandler())
 		}
 
 		// Protected routes (to be implemented)
 		protected := v1.Group("")
-		// protected.Use(middleware.Auth()) // Add auth middleware later
+		protected.Use(auth.RequireAuth(&cfg.Auth0))
 		{
-			// User routes
 			protected.GET("/profile", func(c *gin.Context) {
 				middleware.RespondWithOK(c, gin.H{"message": "Profile endpoint - to be implemented"})
 			})
