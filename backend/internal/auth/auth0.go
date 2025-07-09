@@ -11,8 +11,8 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
-	"github.com/shubhamku044/clipture/internal/config"
-	"github.com/shubhamku044/clipture/internal/middleware"
+	"github.com/shubhamku044/ytclipper/internal/config"
+	"github.com/shubhamku044/ytclipper/internal/middleware"
 	"golang.org/x/oauth2"
 )
 

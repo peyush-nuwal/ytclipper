@@ -1,4 +1,4 @@
-# ✅ Clipture Application - Containerization Complete!
+# ✅ ytclipper Application - Containerization Complete!
 
 ## 🎉 What We've Accomplished
 
@@ -55,7 +55,7 @@ Your application has been successfully containerized and is now production-ready
 {
   "success": true,
   "data": {
-    "service": "clipture-backend",
+    "service": "ytclipper-backend",
     "status": "healthy",
     "timestamp": "2025-06-30T19:50:28Z",
     "version": "1.0.0"
@@ -76,7 +76,7 @@ Your application has been successfully containerized and is now production-ready
 {
   "success": true,
   "data": {
-    "name": "Clipture API",
+    "name": "ytclipper API",
     "description": "A modern screen capture and annotation service",
     "version": "1.0.0",
     "status": "running",
@@ -85,7 +85,7 @@ Your application has been successfully containerized and is now production-ready
       "db_health": "/db-health",
       "api_v1": "/api/v1"
     },
-    "repository": "https://github.com/shubhamku044/clipture"
+    "repository": "https://github.com/shubhamku044/ytclipper"
   }
 }
 ```

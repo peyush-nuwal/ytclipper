@@ -5,11 +5,11 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/shubhamku044/clipture/internal/auth"
-	"github.com/shubhamku044/clipture/internal/config"
-	"github.com/shubhamku044/clipture/internal/database"
-	"github.com/shubhamku044/clipture/internal/handlers"
-	"github.com/shubhamku044/clipture/internal/middleware"
+	"github.com/shubhamku044/ytclipper/internal/auth"
+	"github.com/shubhamku044/ytclipper/internal/config"
+	"github.com/shubhamku044/ytclipper/internal/database"
+	"github.com/shubhamku044/ytclipper/internal/handlers"
+	"github.com/shubhamku044/ytclipper/internal/middleware"
 )
 
 // SetupRouter sets up the router with all routes and middleware
@@ -53,7 +53,7 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 	// Root welcome page
 	r.GET("/", func(c *gin.Context) {
 		middleware.RespondWithOK(c, gin.H{
-			"name":        "Clipture API",
+			"name":        "ytclipper API",
 			"description": "A modern screen capture and annotation service",
 			"version":     "1.0.0",
 			"status":      "running",
@@ -62,7 +62,7 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 				"db_health": "/db-health",
 				"api_v1":    "/api/v1",
 			},
-			"repository": "https://github.com/shubhamku044/clipture",
+			"repository": "https://github.com/shubhamku044/ytclipper",
 		})
 	})
 
@@ -72,7 +72,7 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 		// API v1 welcome page
 		v1.GET("/", func(c *gin.Context) {
 			middleware.RespondWithOK(c, gin.H{
-				"name":        "Clipture API",
+				"name":        "ytclipper API",
 				"description": "A modern screen capture and annotation service",
 				"version":     "1.0.0",
 				"status":      "running",

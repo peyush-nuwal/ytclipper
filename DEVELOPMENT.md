@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide explains how to work with Clipture's development environment, which follows modern best practices similar to
+This guide explains how to work with ytclipper's development environment, which follows modern best practices similar to
 projects like [Monkeytype](https://github.com/monkeytypegame/monkeytype).
 
 ## 🛠️ Development Stack
@@ -48,7 +48,7 @@ docker --version
 ```bash
 # Clone and setup
 git clone <repository-url>
-cd clipture
+cd ytclipper
 pnpm install
 
 # Start development environment
@@ -61,7 +61,7 @@ pnpm dev:backend     # Backend only
 ## 📁 Project Structure
 
 ```
-clipture/
+ytclipper/
 ├── apps/
 │   ├── app/          # React frontend (Port 3000)
 │   └── landing/      # Next.js landing page (Port 3001)
@@ -290,7 +290,7 @@ docker-compose exec backend sh
 docker-compose exec app sh
 
 # Debug specific container
-docker run -it clipture_backend sh
+docker run -it ytclipper_backend sh
 ```
 
 ## 🔍 IDE Setup

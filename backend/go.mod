@@ -1,4 +1,4 @@
-module github.com/shubhamku044/clipture
+module github.com/shubhamku044/ytclipper
 
 go 1.23.0
 

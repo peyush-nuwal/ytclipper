@@ -1,6 +1,6 @@
-# Clipture Docker Setup Guide
+# ytclipper Docker Setup Guide
 
-This guide explains how to set up and run Clipture using Docker, following industry best practices inspired by projects like [Monkeytype](https://github.com/monkeytypegame/monkeytype).
+This guide explains how to set up and run ytclipper using Docker, following industry best practices inspired by projects like [Monkeytype](https://github.com/monkeytypegame/monkeytype).
 
 ## 📁 Docker Organization
 
@@ -232,7 +232,7 @@ docker compose -f docker/compose.yml logs -f postgres
 
 # Execute commands in containers
 docker compose -f docker/compose.yml exec backend sh
-docker compose -f docker/compose.yml exec postgres psql -U postgres -d clipture
+docker compose -f docker/compose.yml exec postgres psql -U postgres -d ytclipper
 
 # Clean up everything (cleans all compose files)
 make clean-all

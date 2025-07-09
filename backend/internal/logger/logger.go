@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/shubhamku044/clipture/internal/config"
+	"github.com/shubhamku044/ytclipper/internal/config"
 )
 
 // InitDefault initializes the logger with default settings

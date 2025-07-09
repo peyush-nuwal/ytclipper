@@ -6,9 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
-	"github.com/shubhamku044/clipture/internal/config"
-	"github.com/shubhamku044/clipture/internal/database"
-	"github.com/shubhamku044/clipture/internal/router"
+	"github.com/shubhamku044/ytclipper/internal/config"
+	"github.com/shubhamku044/ytclipper/internal/database"
+	"github.com/shubhamku044/ytclipper/internal/router"
 )
 
 type Server struct {

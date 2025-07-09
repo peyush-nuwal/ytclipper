@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/shubhamku044/clipture/internal/config"
-	"github.com/shubhamku044/clipture/internal/logger"
-	"github.com/shubhamku044/clipture/internal/server"
+	"github.com/shubhamku044/ytclipper/internal/config"
+	"github.com/shubhamku044/ytclipper/internal/logger"
+	"github.com/shubhamku044/ytclipper/internal/server"
 )
 
 func main() {
