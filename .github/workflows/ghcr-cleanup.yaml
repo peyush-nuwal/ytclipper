@@ -1,0 +1,56 @@
+name: GHCR Cleanup
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # every day at 2 AM UTC
+  workflow_dispatch:
+
+jobs:
+  cleanup-ghcr:
+    runs-on: ubuntu-latest
+
+    env:
+      GHCR_PAT: ${{ secrets.GHCR_PAT }}
+      OWNER: ${{ github.repository_owner }}
+      PACKAGE: ytclipper/backend
+      DELETE_OLDER_THAN_DAYS: "3"
+
+    steps:
+      - name: Delete older images except 'main' tag
+        run: |
+          set -e
+
+          echo "📦 Fetching versions for $PACKAGE..."
+
+          API="https://api.github.com"
+          PACKAGE_URL="$API/users/$OWNER/packages/container/${PACKAGE//\//%2F}/versions"
+
+          SECONDS_THRESHOLD=$(awk "BEGIN { print int(${DELETE_OLDER_THAN_DAYS} * 86400) }")
+          CUTOFF_UNIX=$(date -d "@$(( $(date +%s) - $SECONDS_THRESHOLD ))" +%s)
+
+          curl -s -H "Authorization: Bearer $GHCR_PAT" -H "Accept: application/vnd.github+json" "$PACKAGE_URL" |
+          jq -c '.[]' |
+          while read -r version; do
+            version_id=$(echo "$version" | jq '.id')
+            tags=$(echo "$version" | jq -r '.metadata.container.tags[]?')
+            created_at=$(echo "$version" | jq -r '.created_at')
+            created_at_unix=$(date -d "$created_at" +%s)
+
+            # Skip if tagged as 'main'
+            if echo "$tags" | grep -q "^main$"; then
+              echo "⏩ Skipping version $version_id (tagged as 'main')"
+              continue
+            fi
+
+            if [ "$created_at_unix" -lt "$CUTOFF_UNIX" ]; then
+              echo "🗑️ Deleting version $version_id (created: $created_at)"
+              curl -s -X DELETE \
+                -H "Authorization: Bearer $GHCR_PAT" \
+                -H "Accept: application/vnd.github+json" \
+                "$PACKAGE_URL/$version_id"
+            else
+              echo "⏩ Keeping version $version_id (created: $created_at)"
+            fi
+          done
+
+          echo "✅ GHCR cleanup complete."
