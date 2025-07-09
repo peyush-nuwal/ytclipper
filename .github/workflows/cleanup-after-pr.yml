@@ -3,12 +3,6 @@ name: 🧹 Unified Cleanup After PR Merge
 on:
   pull_request:
     types: [closed]
-    paths:
-      - "backend/**"
-      - "apps/app/**"
-      - "packages/ui/**"
-      - ".github/workflows/cleanup-after-pr.yml"
-      - "docker/**"
 
 jobs:
   cleanup:

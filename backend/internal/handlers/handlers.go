@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/shubhamku044/clipture/internal/database"
-	"github.com/shubhamku044/clipture/internal/middleware"
+	"github.com/shubhamku044/ytclipper/internal/database"
+	"github.com/shubhamku044/ytclipper/internal/middleware"
 )
 
 // HealthCheck returns the health status of the service
@@ -15,7 +15,7 @@ func HealthCheck(c *gin.Context) {
 	middleware.RespondWithOK(c, gin.H{
 		"status":    "healthy",
 		"timestamp": time.Now().UTC(),
-		"service":   "clipture-backend",
+		"service":   "ytclipper-backend",
 		"version":   "1.0.0",
 	})
 }

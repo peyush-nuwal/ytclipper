@@ -12,8 +12,8 @@ import (
 	"github.com/auth0/go-jwt-middleware/v2/jwks"
 	"github.com/auth0/go-jwt-middleware/v2/validator"
 	"github.com/gin-gonic/gin"
-	"github.com/shubhamku044/clipture/internal/config"
-	"github.com/shubhamku044/clipture/internal/middleware"
+	"github.com/shubhamku044/ytclipper/internal/config"
+	"github.com/shubhamku044/ytclipper/internal/middleware"
 )
 
 // CustomClaims contains custom data we want from the token.

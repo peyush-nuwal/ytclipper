@@ -100,7 +100,7 @@ func Load() *Config {
 			URL:      getEnv("DATABASE_URL", ""),
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),
-			Name:     getEnv("DB_NAME", "clipture"),
+			Name:     getEnv("DB_NAME", "ytclipper"),
 			User:     getEnv("DB_USER", "postgres"),
 			Password: getEnv("DB_PASSWORD", "postgres"),
 			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
@@ -110,10 +110,10 @@ func Load() *Config {
 			Expiry: getDurationEnv("JWT_EXPIRY", 24*time.Hour),
 		},
 		Auth: AuthConfig{
-			JWTSecret:           getEnv("AUTH_JWT_SECRET", "clipture_secret_key"),
+			JWTSecret:           getEnv("AUTH_JWT_SECRET", "ytclipper_secret_key"),
 			JWTExpiryHours:      getIntEnv("AUTH_JWT_EXPIRY_HOURS", 72),
 			PasswordResetExpiry: getDurationEnv("AUTH_PASSWORD_RESET_EXPIRY", 24*time.Hour),
-			TokenIssuer:         getEnv("AUTH_TOKEN_ISSUER", "clipture-app"),
+			TokenIssuer:         getEnv("AUTH_TOKEN_ISSUER", "ytclipper-app"),
 		},
 		API: APIConfig{
 			Timeout:   getDurationEnv("API_TIMEOUT", 30*time.Second),

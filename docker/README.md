@@ -1,6 +1,6 @@
-# Clipture Docker Configuration
+# ytclipper Docker Configuration
 
-This directory contains all Docker-related configurations for the Clipture application, organized following industry best practices inspired by projects like Monkeytype.
+This directory contains all Docker-related configurations for the ytclipper application, organized following industry best practices inspired by projects like Monkeytype.
 
 ## 📁 Structure
 

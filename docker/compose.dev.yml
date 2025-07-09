@@ -4,19 +4,19 @@ services:
   # Redis
   redis:
     image: redis:7-alpine
-    container_name: clipture-redis-dev
+    container_name: ytclipper-redis-dev
     restart: unless-stopped
     ports:
       - '6379:6379'
     networks:
-      - clipture-dev-network
+      - ytclipper-dev-network
 
   # Backend API (Development mode)
   backend:
     build:
       context: ../backend
       dockerfile: Dockerfile.dev
-    container_name: clipture-backend-dev
+    container_name: ytclipper-backend-dev
     restart: unless-stopped
     env_file:
       - ../backend/.env
@@ -27,8 +27,8 @@ services:
     depends_on:
       - redis
     networks:
-      - clipture-dev-network
+      - ytclipper-dev-network
 
 networks:
-  clipture-dev-network:
+  ytclipper-dev-network:
     driver: bridge
