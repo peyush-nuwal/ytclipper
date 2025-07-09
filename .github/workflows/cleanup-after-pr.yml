@@ -1,0 +1,48 @@
+name: 🧹 Cleanup After PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    name: Cleanup on PR Merge
+    runs-on: ubuntu-latest
+
+    if: github.event.pull_request.merged == true # Only on merge
+
+    steps:
+      - name: Extract Branch Name
+        id: extract
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          SAFE_BRANCH=$(echo "$BRANCH" | tr '/' '-')
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "safe_branch=$SAFE_BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Cleanup from VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            SAFE_BRANCH="${{ steps.extract.outputs.safe_branch }}"
+            COMPOSE_DIR="/opt/ytclipper-staging/$SAFE_BRANCH"
+            CONTAINER_NAME="ytclipper-$SAFE_BRANCH-backend"
+            DOMAIN="api.$SAFE_BRANCH.ytclipper.com"
+
+            echo "🔍 Cleaning up deployment for branch: $SAFE_BRANCH"
+
+            # Stop and remove container if exists
+            docker rm -f $CONTAINER_NAME || true
+
+            # Remove compose directory
+            rm -rf $COMPOSE_DIR
+
+            # Remove Nginx config and reload
+            sudo rm -f /etc/nginx/sites-available/$DOMAIN
+            sudo rm -f /etc/nginx/sites-enabled/$DOMAIN
+            sudo nginx -t && sudo systemctl reload nginx
+
+            echo "✅ Cleanup completed for $SAFE_BRANCH"
