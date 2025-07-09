@@ -184,8 +184,8 @@ jobs:
               listen 443 ssl;
               server_name $DOMAIN;
 
-              ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
-              ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+              ssl_certificate /etc/letsencrypt/live/ytclipper.com/fullchain.pem;
+              ssl_certificate_key /etc/letsencrypt/live/ytclipper.com/privkey.pem;
 
               location / {
                 proxy_pass http://localhost:$PORT;
@@ -324,8 +324,8 @@ jobs:
               listen 443 ssl;
               server_name $DOMAIN;
 
-              ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
-              ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+              ssl_certificate /etc/letsencrypt/live/ytclipper.com/fullchain.pem;
+              ssl_certificate_key /etc/letsencrypt/live/ytclipper.com/privkey.pem;
 
               location / {
                 proxy_pass http://localhost:$PORT;
