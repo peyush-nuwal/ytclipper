@@ -178,11 +178,11 @@ jobs:
               listen 80;
               server_name $DOMAIN;
 
-              if ($host != $DOMAIN) {
-                return 444;
+              if ($host = "$DOMAIN") {
+                return 301 https://\$host\$request_uri;
               }
 
-              return 301 https://\$host\$request_uri;
+              return 444;
             }
 
             server {
