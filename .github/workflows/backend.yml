@@ -132,10 +132,12 @@ jobs:
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "BACKEND_IMAGE=ghcr.io/$REPO_LOWER/backend:main" >> deploy-temp/.env
           echo "PORT=8080" >> deploy-temp/.env
+          echo "BACKEND_PORT=8080" >> deploy-temp/.env
+          echo "CONTAINER_SUFFIX=${{ steps.context.outputs.safe_branch }}" >> deploy-temp/.env
 
-          echo "DATABASE_URL=${{ secrets.PRODUCTION_DATABASE_URL }}" >> deploy-temp/.env
-          echo "AUTH0_DOMAIN=${{ secrets.PRODUCTION_AUTH0_DOMAIN }}" >> deploy-temp/.env
-          echo "AUTH0_CLIENT_ID=${{ secrets.PRODUCTION_AUTH0_CLIENT_ID }}" >> deploy-temp/.env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> deploy-temp/.env
+          echo "AUTH0_DOMAIN=${{ secrets.AUTH0_DOMAIN }}" >> deploy-temp/.env
+          echo "AUTH0_CLIENT_ID=${{ secrets.AUTH0_CLIENT_ID }}" >> deploy-temp/.env
           echo "AUTH0_CLIENT_SECRET=${{ secrets.PRODUCTION_AUTH0_CLIENT_SECRET }}" >> deploy-temp/.env
           echo "AUTH0_AUDIENCE=${{ secrets.PRODUCTION_AUTH0_AUDIENCE }}" >> deploy-temp/.env
           echo "AUTH0_CALLBACK_URL=${{ secrets.PRODUCTION_AUTH0_CALLBACK_URL }}" >> deploy-temp/.env
@@ -161,12 +163,64 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
             docker compose -f compose.yml --env-file .env up -d --no-deps backend
 
-      - name: 💬 Comment on PR/Commit
-        uses: marocchino/sticky-pull-request-comment@v2
+      - name: Configure Nginx for production
+        uses: appleboy/ssh-action@master
         with:
-          message: |
-            🚀 **Production Deployed Successfully**
-            🔗 **URL**: [https://api.ytclipper.com](https://api.ytclipper.com)
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            DOMAIN="api.ytclipper.com"
+            PORT="8080"
+            CONFIG_FILE="/etc/nginx/sites-available/$DOMAIN"
+            sudo bash -c "cat > $CONFIG_FILE" <<EOF
+            server {
+              listen 80;
+              server_name $DOMAIN;
+              return 301 https://\$host\$request_uri;
+            }
+
+            server {
+              listen 443 ssl;
+              server_name $DOMAIN;
+
+              ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+              ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+
+              location / {
+                proxy_pass http://localhost:$PORT;
+                proxy_set_header Host \$host;
+                proxy_set_header X-Real-IP \$remote_addr;
+                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto \$scheme;
+              }
+            }
+            EOF
+
+            sudo ln -sf $CONFIG_FILE /etc/nginx/sites-enabled/$DOMAIN
+            sudo nginx -t
+            sudo systemctl reload nginx
+
+      - name: Healthcheck
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            if curl -f http://localhost:8080/health; then
+              echo "✅ Backend is healthy"
+            else
+              echo "❌ Backend health check failed"
+              exit 1
+            fi
+
+      - name: 🎉 Deployment Summary
+        id: deployment_summary
+        run: |
+          echo "deployment_url=https://api.ytclipper.com" >> $GITHUB_OUTPUT
+          echo "deployment_port=8080" >> $GITHUB_OUTPUT
+          echo "deployment_branch=main" >> $GITHUB_OUTPUT
 
   deploy-staging:
     name: 🚀 Deploy to VPS (Staging/Other Branches)
@@ -175,10 +229,6 @@ jobs:
     if: github.ref != 'refs/heads/main'
     environment:
       name: staging
-
-    permissions:
-      pull-requests: write
-      contents: write
 
     steps:
       - name: Checkout repository
@@ -211,6 +261,7 @@ jobs:
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "BACKEND_IMAGE=ghcr.io/$REPO_LOWER/backend:${{ steps.context.outputs.safe_branch }}" >> deploy-temp/.env
           echo "BACKEND_PORT=${{ steps.context.outputs.port }}" >> deploy-temp/.env
+          echo "CONTAINER_SUFFIX=${{ steps.context.outputs.safe_branch }}" >> deploy-temp/.env
 
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> deploy-temp/.env
           echo "AUTH0_DOMAIN=${{ secrets.AUTH0_DOMAIN }}" >> deploy-temp/.env
@@ -247,7 +298,7 @@ jobs:
           script: |
             cd ${{ steps.context.outputs.compose_dir }}
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
-            docker compose down
+            docker compose down --remove-orphans
             docker compose -f compose.yml --env-file .env up -d --no-deps backend
 
       - name: Configure Nginx for subdomain
