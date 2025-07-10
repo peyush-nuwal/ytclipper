@@ -18,6 +18,11 @@ RUN pnpm install --frozen-lockfile
 COPY apps/app/ ./apps/app/
 COPY packages/ui/ ./packages/ui/
 
+# Environment variables for build
+ARG VITE_ENVIRONMENT
+
+ENV VITE_ENVIRONMENT=$VITE_ENVIRONMENT
+
 # Build the UI package and the app
 RUN pnpm turbo run build --filter=ui --filter=app
 

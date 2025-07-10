@@ -93,7 +93,7 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ github.ref_name}}
           flavor: |
             latest=false
             prefix=
@@ -131,6 +131,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Extract context
+        id: context
+        run: |
+          echo "safe_branch=main" >> $GITHUB_OUTPUT
+
       - name: Create deployment artifacts
         run: |
           mkdir -p deploy-temp
@@ -146,9 +151,9 @@ jobs:
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> deploy-temp/.env
           echo "AUTH0_DOMAIN=${{ secrets.AUTH0_DOMAIN }}" >> deploy-temp/.env
           echo "AUTH0_CLIENT_ID=${{ secrets.AUTH0_CLIENT_ID }}" >> deploy-temp/.env
-          echo "AUTH0_CLIENT_SECRET=${{ secrets.PRODUCTION_AUTH0_CLIENT_SECRET }}" >> deploy-temp/.env
-          echo "AUTH0_AUDIENCE=${{ secrets.PRODUCTION_AUTH0_AUDIENCE }}" >> deploy-temp/.env
-          echo "AUTH0_CALLBACK_URL=${{ secrets.PRODUCTION_AUTH0_CALLBACK_URL }}" >> deploy-temp/.env
+          echo "AUTH0_CLIENT_SECRET=${{ secrets.AUTH0_CLIENT_SECRET }}" >> deploy-temp/.env
+          echo "AUTH0_AUDIENCE=${{ secrets.AUTH0_AUDIENCE }}" >> deploy-temp/.env
+          echo "AUTH0_CALLBACK_URL=${{ secrets.AUTH0_CALLBACK_URL }}" >> deploy-temp/.env
 
       - name: Upload files to VPS
         uses: appleboy/scp-action@v0.1.4
@@ -252,7 +257,7 @@ jobs:
 
           if [ "$BRANCH" = "staging" ]; then
             echo "port=8081" >> $GITHUB_OUTPUT
-            echo "domain=staging.ytclipper.com" >> $GITHUB_OUTPUT
+            echo "domain=api-staging.ytclipper.com" >> $GITHUB_OUTPUT
             echo "compose_dir=/opt/ytclipper-staging" >> $GITHUB_OUTPUT
           else
             RANDOM_PORT=$((9000 + RANDOM % 1000))
@@ -261,6 +266,11 @@ jobs:
             echo "compose_dir=/opt/ytclipper-staging/$SAFE_BRANCH" >> $GITHUB_OUTPUT
           fi
 
+      - name: Use digest from build-push
+        id: digest
+        run: |
+          echo "digest=${{ needs.build-push.outputs.image-digest }}" >> $GITHUB_OUTPUT
+
       - name: Create deployment artifacts
         run: |
           mkdir -p deploy-temp
@@ -268,7 +278,7 @@ jobs:
           touch deploy-temp/.env
 
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "BACKEND_IMAGE=ghcr.io/$REPO_LOWER/backend:${{ steps.context.outputs.safe_branch }}" >> deploy-temp/.env
+          echo "BACKEND_IMAGE=ghcr.io/$REPO_LOWER/backend@${{ steps.digest.outputs.digest }}" >> deploy-temp/.env
           echo "BACKEND_PORT=${{ steps.context.outputs.port }}" >> deploy-temp/.env
           echo "CONTAINER_SUFFIX=${{ steps.context.outputs.safe_branch }}" >> deploy-temp/.env
 
@@ -307,8 +317,18 @@ jobs:
           script: |
             cd ${{ steps.context.outputs.compose_dir }}
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
-            docker compose down --remove-orphans
-            docker compose -f compose.yml --env-file .env up -d --no-deps backend
+
+            CONTAINER_SUFFIX=${{ steps.context.outputs.safe_branch }}
+            API_CONTAINER_NAME="ytclipper-${CONTAINER_SUFFIX}-backend"
+
+            echo "Checking for the existing container: $API_CONTAINER_NAME"
+
+            if [ "$(docker ps -aq -f name=^/${API_CONTAINER_NAME}$)" ]; then
+              echo "Stopping existing container: $API_CONTAINER_NAME"
+              docker rm -f $API_CONTAINER_NAME
+            fi
+
+            docker compose -p $API_CONTAINER_NAME -f compose.yml --env-file .env up -d --no-deps backend
 
       - name: Configure Nginx for subdomain
         uses: appleboy/ssh-action@master
@@ -317,7 +337,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            DOMAIN="api.${{ steps.context.outputs.safe_branch }}.ytclipper.com"
+            DOMAIN="api-${{ steps.context.outputs.safe_branch }}.ytclipper.com"
             PORT="${{ steps.context.outputs.port }}"
             CONFIG_FILE="/etc/nginx/sites-available/$DOMAIN"
 
@@ -353,13 +373,13 @@ jobs:
       - name: 🎉 Deployment Summary
         id: deployment_summary
         run: |
-          echo "deployment_url=https://api.${{ steps.context.outputs.domain }}" >> $GITHUB_OUTPUT
+          echo "deployment_url=https://api-${{ steps.context.outputs.domain }}" >> $GITHUB_OUTPUT
           echo "deployment_port=${{ steps.context.outputs.port }}" >> $GITHUB_OUTPUT
           echo "deployment_branch=${{ steps.context.outputs.safe_branch }}" >> $GITHUB_OUTPUT
 
       - run: |
           echo "🎉 Staging Deployment was created successfully!"
-          echo "🔗 URL: https://api.${{ steps.context.outputs.domain }}"
+          echo "🔗 URL: https://api-${{ steps.context.outputs.domain }}"
           echo "📦 Branch: ${{ steps.context.outputs.safe_branch }}"
           echo "🔢 Port: ${{ steps.context.outputs.port }}"
 
@@ -367,37 +387,38 @@ jobs:
     name: Comment on PR with Deployment Summary
     runs-on: ubuntu-latest
     needs: [deploy-staging]
+    permissions:
+      pull-requests: write
+      contents: read
+
     steps:
-      - name: Set Deployment Time
-        run: echo "DEPLOYMENT_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
-
-      - name: Post Deployment Comment to PR
-        if: |
-          github.event_name == 'pull_request' || github.event_name == 'push'
-        uses: actions/github-script@v7
+      - name: Create deployment URL comment
+        uses: marocchino/sticky-pull-request-comment@v2.1.0
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = context.payload.pull_request?.number;
-            if (!prNumber) {
-              console.log('No pull request number found, skipping comment.');
-              return;
-            }
-            const commentBody = `
-              **🚀 Deployment Status: Ready**
+          header: "deployment-info"
+          message: |
+            **🚀 Deployment Status: Ready**
 
-              🎉 Staging deployment created successfully!
+            🎉 Staging deployment created successfully!
 
-              - **🔗 URL**: https://${{ needs.deploy-staging.outputs.deployment_url }}
-              - **📦 Branch**: ${{ needs.deploy-staging.outputs.deployment_branch }}
-              - **🔢 Port**: ${{ needs.deploy-staging.outputs.deployment_port }}
-              - **🕒 Time**: ${{ env.DEPLOYMENT_TIME }} UTC
+            - **🔗 URL**: https://${{ needs.deploy-staging.outputs.deployment_url }}
+            - **📦 Branch**: ${{ needs.deploy-staging.outputs.deployment_branch }}
+            - **🔢 Port**: ${{ needs.deploy-staging.outputs.deployment_port }}
+            - **🕒 Last Update**: ${{ env.DEPLOYMENT_TIME }} UTC
 
-              _Deployed by GitHub Actions • Inspect or provide feedback below._
-            `;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-              body: commentBody
-            });
+            _Deployed by GitHub Actions • Updates automatically on new commits_
+          recreate: true
+          number: ${{ github.event.pull_request.number }}
+
+      - name: Add troubleshooting info
+        if: failure()
+        uses: marocchino/sticky-pull-request-comment@v2.1.0
+        with:
+          header: "deployment-error"
+          message: |
+            **❌ Deployment Failed**
+
+            Deployment to staging failed. Please check workflow logs:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          recreate: true
+          number: ${{ github.event.pull_request.number }}
