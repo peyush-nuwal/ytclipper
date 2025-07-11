@@ -1,4 +1,3 @@
-import { logger } from '@ytclipper/extension-dev-utils';
 import './content.css';
 import './style.css';
 
@@ -18,22 +17,20 @@ interface YouTubePageData {
   currentTime: number;
 }
 
-// Content script for YouTube pages
-logger.info('YTClipper content script loaded');
-
 class YouTubeHandler {
   private player: HTMLVideoElement | null = null;
   private currentVideoId: string | null = null;
   private observers: MutationObserver[] = [];
   private floatingButton: HTMLDivElement | null = null;
   private floatingButtonTimeout: number | null = null;
-  private isAuthenticated: boolean = false;
+  private isAuthenticated: boolean = true;
 
   constructor() {
     this.init();
   }
 
   private init() {
+    console.log('YouTube Handler initialized');
     this.checkAuthentication();
     this.waitForPlayer();
     this.observeUrlChanges();
@@ -60,10 +57,10 @@ class YouTubeHandler {
         'authToken',
         'currentUser',
       ]);
+
       this.isAuthenticated = !!(result.authToken && result.currentUser);
-      logger.info('Authentication status:', this.isAuthenticated);
     } catch (error) {
-      logger.error('Failed to check authentication:', error);
+      console.error('Failed to check authentication:', error);
       this.isAuthenticated = false;
     }
   }
@@ -72,13 +69,13 @@ class YouTubeHandler {
     const checkPlayer = () => {
       this.player = document.querySelector('video') as HTMLVideoElement;
       if (this.player) {
-        logger.info('YouTube player found');
         this.setupPlayerEvents();
         this.detectVideoChange();
       } else {
         setTimeout(checkPlayer, 1000);
       }
     };
+
     checkPlayer();
   }
 
@@ -86,7 +83,7 @@ class YouTubeHandler {
     if (!this.player) return;
 
     // Add keyboard shortcut for quick timestamp saving (Ctrl+Shift+T)
-    document.addEventListener('keydown', e => {
+    document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'T') {
         e.preventDefault();
         this.saveQuickTimestamp();
@@ -133,7 +130,7 @@ class YouTubeHandler {
   }
 
   private createFloatingButtonHTML(): string {
-    const currentTime = this.player?.currentTime || 0;
+    const currentTime = this.player?.currentTime ?? 0;
     const formattedTime = this.formatTime(currentTime);
 
     return `
@@ -166,7 +163,7 @@ class YouTubeHandler {
   private setupFloatingButtonEvents() {
     if (!this.floatingButton) return;
 
-    this.floatingButton.addEventListener('click', e => {
+    this.floatingButton.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       const button = target.closest('button') as HTMLButtonElement;
       const action = button?.dataset.action;
@@ -175,11 +172,17 @@ class YouTubeHandler {
         case 'quick-add':
           this.handleQuickAddFromFloat();
           break;
+
         case 'detailed-add':
           this.handleDetailedAddFromFloat();
           break;
+
         case 'close':
           this.hideFloatingButton();
+          break;
+
+        default:
+          // Unknown action, do nothing
           break;
       }
     });
@@ -227,7 +230,6 @@ class YouTubeHandler {
 
     if (videoId && videoId !== this.currentVideoId) {
       this.currentVideoId = videoId;
-      logger.info('Video changed:', videoId);
       this.hideFloatingButton(); // Hide floating button when video changes
       this.loadTimestamps();
     }
@@ -246,7 +248,7 @@ class YouTubeHandler {
         this.displayTimestamps(response.timestamps);
       }
     } catch (error) {
-      logger.error('Failed to load timestamps:', error);
+      console.error('Failed to load timestamps:', error);
     }
   }
 
@@ -254,12 +256,13 @@ class YouTubeHandler {
     // Remove existing timestamp markers
     document
       .querySelectorAll('.ytclipper-timestamp')
-      .forEach(el => el.remove());
+      .forEach((el) => el.remove());
 
     // Add timestamp markers to the video progress bar
     const progressBar = document.querySelector('.ytp-progress-bar-container');
+
     if (progressBar && timestamps.length > 0) {
-      timestamps.forEach(timestamp => {
+      timestamps.forEach((timestamp) => {
         this.addTimestampMarker(timestamp, progressBar as HTMLElement);
       });
     }
@@ -267,6 +270,7 @@ class YouTubeHandler {
 
   private addTimestampMarker(timestamp: Timestamp, container: HTMLElement) {
     const marker = document.createElement('div');
+
     marker.className = 'ytclipper-timestamp';
     marker.title = `${timestamp.title} - ${this.formatTime(timestamp.timestamp)}`;
     marker.style.cssText = `
@@ -277,7 +281,7 @@ class YouTubeHandler {
       background-color: #ff6b35;
       cursor: pointer;
       z-index: 1000;
-      left: ${(timestamp.timestamp / (this.player?.duration || 1)) * 100}%;
+      left: ${(timestamp.timestamp / (this.player?.duration ?? 1)) * 100}%;
     `;
 
     marker.addEventListener('click', () => {
@@ -289,10 +293,11 @@ class YouTubeHandler {
     container.appendChild(marker);
   }
 
-  private async saveQuickTimestamp() {
+  async saveQuickTimestamp() {
     if (!this.player || !this.currentVideoId) return;
 
     const pageData = this.getPageData();
+
     if (!pageData) return;
 
     try {
@@ -314,7 +319,7 @@ class YouTubeHandler {
         this.showNotification('Failed to save timestamp', 'error');
       }
     } catch (error) {
-      logger.error('Failed to save timestamp:', error);
+      console.log('Error saving timestamp:', error);
       this.showNotification('Failed to save timestamp', 'error');
     }
   }
@@ -325,7 +330,7 @@ class YouTubeHandler {
     const titleElement = document.querySelector(
       'h1.ytd-watch-metadata yt-formatted-string',
     );
-    const title = titleElement?.textContent || 'Unknown Video';
+    const title = titleElement?.textContent ?? 'Unknown Video';
 
     return {
       videoId: this.currentVideoId,
@@ -342,6 +347,7 @@ class YouTubeHandler {
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
+
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   }
 
@@ -350,6 +356,7 @@ class YouTubeHandler {
     type: 'success' | 'error' = 'success',
   ) {
     const notification = document.createElement('div');
+
     notification.className = 'ytclipper-notification';
     notification.textContent = message;
     notification.style.cssText = `
@@ -379,12 +386,13 @@ class YouTubeHandler {
   private injectUI() {
     // Inject the timestamp collection UI component
     const script = document.createElement('script');
+
     script.src = chrome.runtime.getURL('src/content-ui/index.js');
     document.head.appendChild(script);
   }
 
   public destroy() {
-    this.observers.forEach(observer => observer.disconnect());
+    this.observers.forEach((observer) => observer.disconnect());
     this.hideFloatingButton();
   }
 }
@@ -392,7 +400,36 @@ class YouTubeHandler {
 // Initialize the YouTube handler
 const youtubeHandler = new YouTubeHandler();
 
+const iframe = document.createElement('iframe');
+iframe.src = 'http://localhost:5173/auth-bridge';
+iframe.style.display = 'none';
+document.body.appendChild(iframe);
+
+iframe.onload = () => {
+  console.log('Auth bridge iframe loaded');
+  iframe.contentWindow?.postMessage(
+    {
+      type: 'TESTING',
+    },
+    '*',
+  );
+};
+
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {
   youtubeHandler.destroy();
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Forward message to the page
+  window.postMessage(message, '*');
+});
+
+window.addEventListener('message', (event) => {
+  if (event.data?.type === 'AUTH_STATUS_RESPONSE') {
+    chrome.runtime.sendMessage({
+      type: 'AUTH_STATUS_RESPONSE',
+      data: event.data,
+    });
+  }
 });

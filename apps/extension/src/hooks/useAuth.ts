@@ -1,148 +1,62 @@
 import { useEffect, useState } from 'react';
 
-import { logger } from '@ytclipper/extension-dev-utils';
+import type { User } from '@/types/auth';
 
 import { authService } from '../services/authService';
-import type {
-  AuthState,
-  LoginCredentials,
-  RegisterCredentials,
-} from '../types/auth';
 
 export const useAuth = () => {
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: false,
-    user: null,
-    token: null,
-    isLoading: true,
-    error: null,
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Check for stored authentication on mount
-  useEffect(() => {
-    initializeAuth();
-  }, []);
-
-  const initializeAuth = async () => {
-    try {
-      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
-
-      const { token, user } = await authService.getStoredAuthData();
-
-      if (token && user) {
-        // Verify token is still valid
-        const verification = await authService.verifyToken(token);
-
-        if (verification.success) {
-          setAuthState({
-            isAuthenticated: true,
-            user: verification.user!,
-            token: verification.token!,
-            isLoading: false,
-            error: null,
-          });
-        } else {
-          setAuthState({
-            isAuthenticated: false,
-            user: null,
-            token: null,
-            isLoading: false,
-            error: verification.error || null,
-          });
-        }
-      } else {
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          token: null,
-          isLoading: false,
-          error: null,
-        });
-      }
-    } catch (error) {
-      logger.error('Failed to initialize auth:', error);
-      setAuthState({
-        isAuthenticated: false,
-        user: null,
-        token: null,
-        isLoading: false,
-        error: 'Failed to initialize authentication',
-      });
-    }
-  };
-
-  const login = async (credentials: LoginCredentials) => {
-    setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
-
-    const result = await authService.login(credentials);
-
-    if (result.success) {
-      setAuthState({
-        isAuthenticated: true,
-        user: result.user!,
-        token: result.token!,
-        isLoading: false,
-        error: null,
-      });
-    } else {
-      setAuthState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: result.error || 'Login failed',
-      }));
-    }
-
-    return result;
-  };
-
-  const register = async (credentials: RegisterCredentials) => {
-    setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
-
-    const result = await authService.register(credentials);
-
-    if (result.success) {
-      setAuthState({
-        isAuthenticated: true,
-        user: result.user!,
-        token: result.token!,
-        isLoading: false,
-        error: null,
-      });
-    } else {
-      setAuthState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: result.error || 'Registration failed',
-      }));
-    }
-
-    return result;
+  const login = async () => {
+    const result = await authService.login();
+    if (!result.success) setError(result.error || 'Login failed');
   };
 
   const logout = async () => {
-    setAuthState(prev => ({ ...prev, isLoading: true }));
-
     await authService.logout();
-
-    setAuthState({
-      isAuthenticated: false,
-      user: null,
-      token: null,
-      isLoading: false,
-      error: null,
-    });
+    setUser(null);
+    setToken(null);
+    setIsAuthenticated(false);
   };
 
-  const clearError = () => {
-    setAuthState(prev => ({ ...prev, error: null }));
-  };
+  const clearError = () => setError(null);
+
+  useEffect(() => {
+    (async () => {
+      setIsLoading(true);
+
+      try {
+        const result = await authService.getCurrentAuth();
+
+        if (result.isAuthenticated) {
+          setUser(result.user);
+          setToken(result.token);
+          setIsAuthenticated(true);
+        } else {
+          setUser(null);
+          setToken(null);
+          setIsAuthenticated(false);
+        }
+      } catch (err) {
+        setError('Failed to check auth');
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
 
   return {
-    ...authState,
+    isAuthenticated,
+    user,
+    token,
+    isLoading,
+    error,
     login,
-    register,
     logout,
     clearError,
-    refresh: initializeAuth,
   };
 };
