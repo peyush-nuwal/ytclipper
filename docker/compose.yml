@@ -3,7 +3,8 @@ services:
     image: ${BACKEND_IMAGE:-ghcr.io/priyabratamo/ytclipper/backend:latest}
     container_name: ytclipper-${CONTAINER_SUFFIX:-default}-backend
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
     env_file:
       - .env
     environment:
@@ -12,39 +13,47 @@ services:
       - LOG_PRETTY=${LOG_PRETTY:-true}
       - API_TIMEOUT=${API_TIMEOUT:-30s}
       - GIN_MODE=${GIN_MODE:-release}
-      - PORT=${BACKEND_PORT:-8080}
+      - PORT=8080
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://localhost:${BACKEND_PORT:-8080}/health || exit 1",
+          "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1",
         ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
+    networks:
+      - ytclipper-network
 
   app:
     image: ${FRONTEND_IMAGE:-ghcr.io/priyabratamo/ytclipper/frontend:latest}
     container_name: ytclipper-${CONTAINER_SUFFIX:-default}-app
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
     env_file:
       - .env
     environment:
-      - PORT=${FRONTEND_PORT:-3000}
+      - PORT=80
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://localhost:${FRONTEND_PORT:-3000}/ || exit 1",
+          "wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1",
         ]
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - ytclipper-network
 
-# Explicitly disable default network creation
+# Use a custom network with specific subnet to avoid conflicts
 networks:
-  default:
-    external: true
-    name: bridge
+  ytclipper-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16

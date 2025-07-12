@@ -203,14 +203,34 @@ jobs:
             PORT="${{ steps.context.outputs.port }}"
 
             echo "🚀 Deploying to $TARGET_DIR"
+            echo "🔍 Target container: $CONTAINER_NAME"
+            echo "🔍 Target domain: $DOMAIN"
+            echo "🔍 Target port: $PORT"
 
             # Create directory
             mkdir -p "$TARGET_DIR"
 
-            # Stop existing container
-            if [ "$(docker ps -aq -f name=^${CONTAINER_NAME}$)" ]; then
-              echo "Stopping existing container: $CONTAINER_NAME"
+            # List current containers for debugging
+            echo "📦 Current containers before deployment:"
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+            # Stop existing container with exact name match only
+            EXISTING_CONTAINER=$(docker ps -aq -f name="^${CONTAINER_NAME}$" || true)
+            if [ -n "$EXISTING_CONTAINER" ]; then
+              echo "🛑 Found existing container with exact name: $CONTAINER_NAME"
+              echo "🛑 Stopping and removing: $CONTAINER_NAME"
               docker rm -f "$CONTAINER_NAME"
+            else
+              echo "ℹ️  No existing container found with name: $CONTAINER_NAME"
+            fi
+
+            # Verify no port conflicts
+            PORT_IN_USE=$(docker ps --format "table {{.Names}}\t{{.Ports}}" | grep ":$PORT->" || true)
+            if [ -n "$PORT_IN_USE" ]; then
+              echo "⚠️  Warning: Port $PORT is already in use:"
+              echo "$PORT_IN_USE"
+              echo "❌ Deployment aborted due to port conflict"
+              exit 1
             fi
 
       - name: Upload deployment files
