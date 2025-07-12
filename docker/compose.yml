@@ -25,7 +25,7 @@ services:
       retries: 3
       start_period: 30s
     networks:
-      - ytclipper-network
+      - ytclipper-shared
 
   app:
     image: ${FRONTEND_IMAGE:-ghcr.io/priyabratamo/ytclipper/frontend:latest}
@@ -47,13 +47,9 @@ services:
       timeout: 10s
       retries: 3
     networks:
-      - ytclipper-network
+      - ytclipper-shared
 
-# Use a custom network with specific subnet to avoid conflicts
+# Use a single shared network across all deployments
 networks:
-  ytclipper-network:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.20.0.0/16
+  ytclipper-shared:
+    external: true
