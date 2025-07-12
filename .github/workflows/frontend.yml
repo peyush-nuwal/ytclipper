@@ -37,14 +37,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: "npm"
-
-      - name: Install pnpm
-        run: npm i -g pnpm
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -96,7 +98,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha,prefix={{branch}}-
+            type=sha
           flavor: |
             latest=false
 
@@ -140,13 +142,13 @@ jobs:
               echo "branch=prod" >> $GITHUB_OUTPUT
               echo "port=3000" >> $GITHUB_OUTPUT
               echo "domain=app.ytclipper.com" >> $GITHUB_OUTPUT
-              echo "target-dir=/opt/ytclipper/production" >> $GITHUB_OUTPUT
+              echo "target-dir=/opt/ytclipper/production/frontend" >> $GITHUB_OUTPUT
               ;;
             "staging")
               echo "branch=staging" >> $GITHUB_OUTPUT
               echo "port=3001" >> $GITHUB_OUTPUT
               echo "domain=app-staging.ytclipper.com" >> $GITHUB_OUTPUT
-              echo "target-dir=/opt/ytclipper/deployments/staging" >> $GITHUB_OUTPUT
+              echo "target-dir=/opt/ytclipper/deployments/staging/frontend" >> $GITHUB_OUTPUT
               ;;
             "pr")
               BRANCH="pr-${{ github.event.number }}"
@@ -155,7 +157,7 @@ jobs:
               echo "branch=$BRANCH" >> $GITHUB_OUTPUT
               echo "port=$PORT" >> $GITHUB_OUTPUT
               echo "domain=app-$BRANCH.ytclipper.com" >> $GITHUB_OUTPUT
-              echo "target-dir=/opt/ytclipper/deployments/$BRANCH" >> $GITHUB_OUTPUT
+              echo "target-dir=/opt/ytclipper/deployments/$BRANCH/frontend" >> $GITHUB_OUTPUT
               ;;
           esac
 
@@ -226,7 +228,7 @@ jobs:
             docker compose -f compose.yml --env-file .env up -d --no-deps app
 
             # Configure nginx
-            sudo bash -c "cat > /etc/nginx/sites-available/$DOMAIN" << 'EOF'
+            sudo tee /etc/nginx/sites-available/$DOMAIN > /dev/null << EOF
             server {
               listen 80;
               server_name $DOMAIN;
@@ -339,7 +341,7 @@ jobs:
             CONTAINER_NAME="ytclipper-$BRANCH-app"
             DOMAIN="app-$BRANCH.ytclipper.com"
 
-            echo "🧹 Cleaning up deployment for $BRANCH"
+            echo "🧹 Cleaning up frontend deployment for $BRANCH"
 
             # Stop and remove container
             if [ "$(docker ps -aq -f name=^${CONTAINER_NAME}$)" ]; then
@@ -353,9 +355,14 @@ jobs:
             sudo nginx -t && sudo systemctl reload nginx
 
             # Remove deployment directory
-            rm -rf "/opt/ytclipper/deployments/$BRANCH"
+            rm -rf "/opt/ytclipper/deployments/$BRANCH/frontend"
 
-            echo "✅ Cleanup completed for $BRANCH"
+            # Remove parent directory if empty (only frontend and backend subdirs)
+            if [ -d "/opt/ytclipper/deployments/$BRANCH" ] && [ -z "$(ls -A /opt/ytclipper/deployments/$BRANCH)" ]; then
+              rm -rf "/opt/ytclipper/deployments/$BRANCH"
+            fi
+
+            echo "✅ Frontend cleanup completed for $BRANCH"
 
       - name: Comment on cleanup
         uses: marocchino/sticky-pull-request-comment@v2.1.0
