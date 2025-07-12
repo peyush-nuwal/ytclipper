@@ -115,7 +115,7 @@ jobs:
       deployment-port: ${{ steps.deploy-result.outputs.deployment-port }}
       deployment-branch: ${{ steps.deploy-result.outputs.deployment-branch }}
     environment:
-      name: ${{ needs.test-and-build.outputs.deploy-type }}
+      name: ${{ needs.test-and-build.outputs.deploy-type == 'pr' && 'production' || needs.test-and-build.outputs.deploy-type }}
 
     steps:
       - name: Checkout repository
