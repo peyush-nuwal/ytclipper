@@ -228,7 +228,7 @@ jobs:
             docker compose -f compose.yml --env-file .env up -d --no-deps app
 
             # Configure nginx
-            sudo bash -c "cat > /etc/nginx/sites-available/$DOMAIN" << 'EOF'
+            sudo tee /etc/nginx/sites-available/$DOMAIN > /dev/null << EOF
             server {
               listen 80;
               server_name $DOMAIN;
