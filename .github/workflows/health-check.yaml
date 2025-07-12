@@ -22,9 +22,28 @@ jobs:
             set -euo pipefail
             echo "🩺 Starting health checks for ytclipper production"
 
-            # 1. Check Docker services
+            # 1. Check Docker services (Note: Host networking containers won't show port mappings)
             echo "📦 Checking Docker services..."
             docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+            # Check specific production containers
+            echo "🔍 Checking production containers..."
+            BACKEND_CONTAINER="ytclipper-production-backend"
+            FRONTEND_CONTAINER="ytclipper-production-app"
+
+            if [ "$(docker ps -q -f name=^${BACKEND_CONTAINER}$)" ]; then
+              echo "✅ Backend container ($BACKEND_CONTAINER) is running"
+            else
+              echo "❌ Backend container ($BACKEND_CONTAINER) is not running"
+              exit 1
+            fi
+
+            if [ "$(docker ps -q -f name=^${FRONTEND_CONTAINER}$)" ]; then
+              echo "✅ Frontend container ($FRONTEND_CONTAINER) is running"
+            else
+              echo "❌ Frontend container ($FRONTEND_CONTAINER) is not running"
+              exit 1
+            fi
 
             # 2. Backend health check
             echo "🔁 Checking backend health at http://localhost:8080/health"
@@ -53,6 +72,22 @@ jobs:
               exit 1
             fi
 
+            # 5. Check if processes are actually listening on expected ports
+            echo "🔌 Checking port listeners..."
+            if netstat -tlnp | grep -q ":8080.*LISTEN"; then
+              echo "✅ Backend port 8080 is listening"
+            else
+              echo "❌ Nothing listening on port 8080"
+              exit 1
+            fi
+
+            if netstat -tlnp | grep -q ":3000.*LISTEN"; then
+              echo "✅ Frontend port 3000 is listening"
+            else
+              echo "❌ Nothing listening on port 3000"
+              exit 1
+            fi
+
             echo "🏁 All checks passed!"
 
       - name: ✅ Health Check Summary
@@ -62,6 +97,7 @@ jobs:
           echo "- Backend: 🟢 Healthy" >> $GITHUB_STEP_SUMMARY
           echo "- Database: 🟢 Healthy" >> $GITHUB_STEP_SUMMARY
           echo "- Frontend: 🟢 Healthy" >> $GITHUB_STEP_SUMMARY
+          echo "- Port listeners: 🟢 Active" >> $GITHUB_STEP_SUMMARY
           echo "- Last check: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
 
       - name: ❌ Alert on Failure
@@ -72,7 +108,8 @@ jobs:
           echo "- Failure time: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
           echo "### Troubleshooting Steps:" >> $GITHUB_STEP_SUMMARY
           echo "1. Check container status: \`docker ps -a\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. View backend logs: \`docker logs ytclipper-backend\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. View backend logs: \`docker logs ytclipper-production-backend\`" >> $GITHUB_STEP_SUMMARY
           echo "3. Check database connection: \`psql \$DATABASE_URL -c 'SELECT 1'\`" >> $GITHUB_STEP_SUMMARY
-          echo "4. View frontend logs: \`docker logs ytclipper-frontend\`" >> $GITHUB_STEP_SUMMARY
+          echo "4. View frontend logs: \`docker logs ytclipper-production-app\`" >> $GITHUB_STEP_SUMMARY
           echo "5. Check Nginx status: \`sudo systemctl status nginx\`" >> $GITHUB_STEP_SUMMARY
+          echo "6. Check port listeners: \`netstat -tlnp | grep -E ':(3000|8080).*LISTEN'\`" >> $GITHUB_STEP_SUMMARY
