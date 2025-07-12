@@ -129,13 +129,13 @@ jobs:
               echo "branch=prod" >> $GITHUB_OUTPUT
               echo "port=8080" >> $GITHUB_OUTPUT
               echo "domain=api.ytclipper.com" >> $GITHUB_OUTPUT
-              echo "target-dir=/opt/ytclipper/production" >> $GITHUB_OUTPUT
+              echo "target-dir=/opt/ytclipper/production/backend" >> $GITHUB_OUTPUT
               ;;
             "staging")
               echo "branch=staging" >> $GITHUB_OUTPUT
               echo "port=8081" >> $GITHUB_OUTPUT
               echo "domain=api-staging.ytclipper.com" >> $GITHUB_OUTPUT
-              echo "target-dir=/opt/ytclipper/deployments/staging" >> $GITHUB_OUTPUT
+              echo "target-dir=/opt/ytclipper/deployments/staging/backend" >> $GITHUB_OUTPUT
               ;;
             "pr")
               BRANCH="pr-${{ github.event.number }}"
@@ -144,7 +144,7 @@ jobs:
               echo "branch=$BRANCH" >> $GITHUB_OUTPUT
               echo "port=$PORT" >> $GITHUB_OUTPUT
               echo "domain=api-$BRANCH.ytclipper.com" >> $GITHUB_OUTPUT
-              echo "target-dir=/opt/ytclipper/deployments/$BRANCH" >> $GITHUB_OUTPUT
+              echo "target-dir=/opt/ytclipper/deployments/$BRANCH/backend" >> $GITHUB_OUTPUT
               ;;
           esac
 
@@ -359,7 +359,7 @@ jobs:
             CONTAINER_NAME="ytclipper-$BRANCH-backend"
             DOMAIN="api-$BRANCH.ytclipper.com"
 
-            echo "🧹 Cleaning up deployment for $BRANCH"
+            echo "🧹 Cleaning up backend deployment for $BRANCH"
 
             # Stop and remove container
             if [ "$(docker ps -aq -f name=^${CONTAINER_NAME}$)" ]; then
@@ -373,9 +373,14 @@ jobs:
             sudo nginx -t && sudo systemctl reload nginx
 
             # Remove deployment directory
-            rm -rf "/opt/ytclipper/deployments/$BRANCH"
+            rm -rf "/opt/ytclipper/deployments/$BRANCH/backend"
 
-            echo "✅ Cleanup completed for $BRANCH"
+            # Remove parent directory if empty (only frontend and backend subdirs)
+            if [ -d "/opt/ytclipper/deployments/$BRANCH" ] && [ -z "$(ls -A /opt/ytclipper/deployments/$BRANCH)" ]; then
+              rm -rf "/opt/ytclipper/deployments/$BRANCH"
+            fi
+
+            echo "✅ Backend cleanup completed for $BRANCH"
 
       - name: Comment on cleanup
         uses: marocchino/sticky-pull-request-comment@v2.1.0
