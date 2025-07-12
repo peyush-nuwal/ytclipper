@@ -274,28 +274,3 @@ jobs:
               console.log(`⚠️  Error during frontend GHCR cleanup: ${error.message}`);
               // Don't fail the workflow if GHCR cleanup fails
             }
-
-      - name: Comment on PR
-        uses: marocchino/sticky-pull-request-comment@v2.1.0
-        with:
-          header: "cleanup-summary"
-          message: |
-            ## 🧹 Cleanup Completed
-
-            The deployment resources for this PR have been successfully cleaned up:
-
-            ### 🗑️ Removed Resources
-            - **Containers**: `ytclipper-pr-${{ steps.extract.outputs.pr_number }}-backend`, `ytclipper-pr-${{ steps.extract.outputs.pr_number }}-app`
-            - **Directories**: `/opt/ytclipper/deployments/pr-${{ steps.extract.outputs.pr_number }}/`
-            - **Domains**: `api-pr-${{ steps.extract.outputs.pr_number }}.ytclipper.com`, `app-pr-${{ steps.extract.outputs.pr_number }}.ytclipper.com`
-            - **GHCR Images**: Container images tagged with `pr-${{ steps.extract.outputs.pr_number }}`
-
-            ### 📊 Cleanup Summary
-            - ✅ VPS resources cleaned up
-            - ✅ Nginx configurations removed
-            - ✅ Docker containers stopped and removed
-            - ✅ Deployment directories cleaned up
-            - ✅ GHCR images deleted
-            - ✅ Nginx reloaded
-
-            The VPS is now clean and ready for future deployments! 🎉
