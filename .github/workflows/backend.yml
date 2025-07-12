@@ -126,7 +126,7 @@ jobs:
         run: |
           case "${{ needs.test-and-build.outputs.deploy-type }}" in
             "production")
-              echo "branch=prod" >> $GITHUB_OUTPUT
+              echo "branch=production" >> $GITHUB_OUTPUT
               echo "port=8080" >> $GITHUB_OUTPUT
               echo "domain=api.ytclipper.com" >> $GITHUB_OUTPUT
               echo "target-dir=/opt/ytclipper/production/backend" >> $GITHUB_OUTPUT
@@ -352,29 +352,88 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
+
             BRANCH="pr-${{ github.event.number }}"
             CONTAINER_NAME="ytclipper-$BRANCH-backend"
             DOMAIN="api-$BRANCH.ytclipper.com"
+            DEPLOYMENT_DIR="/opt/ytclipper/deployments/$BRANCH"
 
             echo "🧹 Cleaning up backend deployment for $BRANCH"
+            echo "🔍 Looking for container: $CONTAINER_NAME"
+            echo "🔍 Looking for domain: $DOMAIN"
+            echo "🔍 Looking for directory: $DEPLOYMENT_DIR"
 
-            # Stop and remove container
-            if [ "$(docker ps -aq -f name=^${CONTAINER_NAME}$)" ]; then
-              echo "Removing container: $CONTAINER_NAME"
+            # List all containers to help debug
+            echo "📦 Current containers:"
+            docker ps -a --format "table {{.Names}}\t{{.Status}}"
+
+            # Stop and remove container (try both exact and partial matches)
+            CONTAINERS_FOUND=$(docker ps -aq -f name="$CONTAINER_NAME" || true)
+            if [ -n "$CONTAINERS_FOUND" ]; then
+              echo "✅ Found containers: $CONTAINERS_FOUND"
+              echo "🛑 Stopping and removing container: $CONTAINER_NAME"
               docker rm -f "$CONTAINER_NAME"
+            else
+              echo "ℹ️  No containers found with name: $CONTAINER_NAME"
+              # Try to find containers with partial name match
+              PARTIAL_CONTAINERS=$(docker ps -aq --filter "name=ytclipper-$BRANCH" || true)
+              if [ -n "$PARTIAL_CONTAINERS" ]; then
+                echo "✅ Found containers with partial match: $PARTIAL_CONTAINERS"
+                for container in $PARTIAL_CONTAINERS; do
+                  CONTAINER_NAME_FULL=$(docker ps -a --format "{{.Names}}" --filter "id=$container")
+                  echo "🛑 Stopping and removing container: $CONTAINER_NAME_FULL"
+                  docker rm -f "$container"
+                done
+              else
+                echo "ℹ️  No containers found for branch: $BRANCH"
+              fi
             fi
 
             # Remove nginx config
-            sudo rm -f "/etc/nginx/sites-enabled/$DOMAIN"
-            sudo rm -f "/etc/nginx/sites-available/$DOMAIN"
-            sudo nginx -t && sudo systemctl reload nginx
+            echo "🗑️  Removing nginx configuration..."
+            if [ -f "/etc/nginx/sites-enabled/$DOMAIN" ]; then
+              sudo rm -f "/etc/nginx/sites-enabled/$DOMAIN"
+              echo "✅ Removed nginx sites-enabled: $DOMAIN"
+            else
+              echo "ℹ️  No nginx sites-enabled found: $DOMAIN"
+            fi
+
+            if [ -f "/etc/nginx/sites-available/$DOMAIN" ]; then
+              sudo rm -f "/etc/nginx/sites-available/$DOMAIN"
+              echo "✅ Removed nginx sites-available: $DOMAIN"
+            else
+              echo "ℹ️  No nginx sites-available found: $DOMAIN"
+            fi
+
+            # Test nginx configuration
+            if sudo nginx -t 2>/dev/null; then
+              sudo systemctl reload nginx
+              echo "✅ Nginx configuration reloaded"
+            else
+              echo "⚠️  Nginx configuration test failed, but continuing cleanup"
+            fi
 
             # Remove deployment directory
-            rm -rf "/opt/ytclipper/deployments/$BRANCH/backend"
+            echo "🗑️  Removing deployment directory..."
+            if [ -d "$DEPLOYMENT_DIR/backend" ]; then
+              rm -rf "$DEPLOYMENT_DIR/backend"
+              echo "✅ Removed backend directory: $DEPLOYMENT_DIR/backend"
+            else
+              echo "ℹ️  No backend directory found: $DEPLOYMENT_DIR/backend"
+            fi
 
-            # Remove parent directory if empty (only frontend and backend subdirs)
-            if [ -d "/opt/ytclipper/deployments/$BRANCH" ] && [ -z "$(ls -A /opt/ytclipper/deployments/$BRANCH)" ]; then
-              rm -rf "/opt/ytclipper/deployments/$BRANCH"
+            # Remove parent directory if empty
+            if [ -d "$DEPLOYMENT_DIR" ]; then
+              if [ -z "$(ls -A "$DEPLOYMENT_DIR" 2>/dev/null)" ]; then
+                rm -rf "$DEPLOYMENT_DIR"
+                echo "✅ Removed empty deployment directory: $DEPLOYMENT_DIR"
+              else
+                echo "ℹ️  Deployment directory not empty, keeping: $DEPLOYMENT_DIR"
+                echo "📁 Contents: $(ls -la "$DEPLOYMENT_DIR")"
+              fi
+            else
+              echo "ℹ️  No deployment directory found: $DEPLOYMENT_DIR"
             fi
 
             echo "✅ Backend cleanup completed for $BRANCH"
