@@ -139,7 +139,7 @@ jobs:
         run: |
           case "${{ needs.test-and-build.outputs.deploy-type }}" in
             "production")
-              echo "branch=prod" >> $GITHUB_OUTPUT
+              echo "branch=production" >> $GITHUB_OUTPUT
               echo "port=3000" >> $GITHUB_OUTPUT
               echo "domain=app.ytclipper.com" >> $GITHUB_OUTPUT
               echo "target-dir=/opt/ytclipper/production/frontend" >> $GITHUB_OUTPUT
