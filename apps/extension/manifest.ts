@@ -22,6 +22,13 @@ const manifest: Manifest = {
     type: 'module',
   },
 
+  icons: {
+    '16': 'icon16.png',
+    '32': 'icon32.png',
+    '48': 'icon48.png',
+    '128': 'icon128.png',
+  },
+
   content_scripts: [
     {
       matches: [
@@ -40,19 +47,13 @@ const manifest: Manifest = {
     default_popup: 'src/popup/index.html',
     default_title: 'YTClipper',
     default_icon: {
-      16: 'icon-16.png',
-      32: 'icon-32.png',
-      48: 'icon-48.png',
-      128: 'icon-128.png',
+      '16': 'icon16.png',
+      '32': 'icon32.png',
+      '48': 'icon48.png',
+      '128': 'icon128.png',
     },
   },
-
-  icons: {
-    16: 'icon-16.png',
-    32: 'icon-32.png',
-    48: 'icon-48.png',
-    128: 'icon-128.png',
-  },
+  homepage_url: 'https://ytclipper.com',
 };
 
 export default manifest;
