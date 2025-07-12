@@ -88,6 +88,8 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=sha
+            type=raw,value={{branch}}-{{sha}},enable={{is_default_branch}}
+            type=raw,value=pr-{{branch}}-{{sha}},enable=${{ github.event_name == 'pull_request' }}
           flavor: |
             latest=false
 
@@ -154,9 +156,17 @@ jobs:
           cp docker/compose.yml deploy-temp/
 
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+
+          # Generate unique tag for this deployment
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            IMAGE_TAG="pr-${{ github.event.number }}-${{ github.sha }}"
+          else
+            IMAGE_TAG="${{ github.ref_name }}-${{ github.sha }}"
+          fi
+
           cat > deploy-temp/.env << EOF
           # Docker configuration
-          BACKEND_IMAGE=ghcr.io/$REPO_LOWER/backend@${{ needs.test-and-build.outputs.image-digest }}
+          BACKEND_IMAGE=ghcr.io/$REPO_LOWER/backend:$IMAGE_TAG
           BACKEND_PORT=${{ steps.context.outputs.port }}
           CONTAINER_SUFFIX=${{ steps.context.outputs.branch }}
 
@@ -476,10 +486,10 @@ jobs:
         with:
           script: |
             const prNumber = context.payload.number;
-            const prTag = `pr-${prNumber}`;
+            const prTagPrefix = `pr-${prNumber}-`;
 
             console.log(`🧹 Cleaning up GHCR images for PR #${prNumber}`);
-            console.log(`🔍 Looking for images tagged with: ${prTag}`);
+            console.log(`🔍 Looking for images tagged with prefix: ${prTagPrefix}`);
 
             try {
               // Get all package versions for backend
@@ -497,9 +507,10 @@ jobs:
                 const tags = version.metadata?.container?.tags || [];
                 console.log(`🔍 Version ${version.id}: tags = [${tags.join(', ')}]`);
                 
-                // Check if this version has the PR tag
-                if (tags.includes(prTag)) {
-                  console.log(`🗑️  Deleting version ${version.id} (tagged with ${prTag})`);
+                // Check if this version has any tag that starts with the PR prefix
+                const hasPrTag = tags.some(tag => tag.startsWith(prTagPrefix));
+                if (hasPrTag) {
+                  console.log(`🗑️  Deleting version ${version.id} (tagged with PR prefix ${prTagPrefix})`);
                   
                   try {
                     await github.rest.packages.deletePackageVersionForAuthenticatedUser({
