@@ -186,9 +186,6 @@ jobs:
           # API configuration
           API_TIMEOUT=30s
           API_RATE_LIMIT=100
-
-          # Redis configuration (if needed)
-          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
           EOF
 
       - name: Deploy to VPS
