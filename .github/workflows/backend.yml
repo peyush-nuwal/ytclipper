@@ -235,8 +235,23 @@ jobs:
             echo "📦 Current containers before deployment:"
             docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
+                        # SAFETY CHECK: Never touch production or staging containers
+            if [[ "$CONTAINER_NAME" == *"production"* ]] || [[ "$CONTAINER_NAME" == *"staging"* ]]; then
+              echo "🚨 SAFETY CHECK: This deployment should not affect production/staging containers"
+              echo "🚨 Container name: $CONTAINER_NAME"
+              echo "🚨 Branch: ${{ steps.context.outputs.branch }}"
+              echo "🚨 Deploy type: ${{ needs.test-and-build.outputs.deploy-type }}"
+              
+              # Only proceed if this is actually a production/staging deployment
+              if [[ "${{ needs.test-and-build.outputs.deploy-type }}" != "production" ]] && [[ "${{ needs.test-and-build.outputs.deploy-type }}" != "staging" ]]; then
+                echo "❌ ERROR: PR deployment trying to affect production/staging containers!"
+                echo "❌ This should never happen. Aborting deployment."
+                exit 1
+              fi
+            fi
+
             # Stop existing container with exact name match only
-            EXISTING_CONTAINER=$(docker ps -aq -f name="^${CONTAINER_NAME}$" || true)
+            EXISTING_CONTAINER=$(docker ps -aq --filter "name=^${CONTAINER_NAME}$" || true)
             if [ -n "$EXISTING_CONTAINER" ]; then
               echo "🛑 Found existing container with exact name: $CONTAINER_NAME"
               echo "🛑 Stopping and removing: $CONTAINER_NAME"
@@ -244,6 +259,10 @@ jobs:
             else
               echo "ℹ️  No existing container found with name: $CONTAINER_NAME"
             fi
+
+            # Double check - ensure we're not affecting other containers
+            echo "📦 Current containers status:"
+            docker ps -a --format "table {{.Names}}\t{{.Status}}" | grep "ytclipper" || echo "No ytclipper containers found"
 
             # Verify no port conflicts
             PORT_IN_USE=$(docker ps --format "table {{.Names}}\t{{.Ports}}" | grep ":$PORT->" || true)
@@ -280,7 +299,22 @@ jobs:
             # Login to registry and start container
             cd "$TARGET_DIR"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+
+            # Pull image first to ensure it's available
+            BACKEND_IMAGE=$(grep "^BACKEND_IMAGE=" .env | cut -d'=' -f2)
+            echo "🔄 Pulling image: $BACKEND_IMAGE"
+            docker pull "$BACKEND_IMAGE"
+
+            # Start the container
             docker compose -f compose.yml --env-file .env up -d --no-deps backend
+
+            # Verify container started successfully
+            sleep 5
+            if ! docker ps | grep -q "$CONTAINER_NAME"; then
+              echo "❌ Container failed to start: $CONTAINER_NAME"
+              docker logs "$CONTAINER_NAME" || echo "No logs available"
+              exit 1
+            fi
 
             # Configure nginx
             sudo tee /etc/nginx/sites-available/$DOMAIN > /dev/null << EOF
