@@ -1,28 +1,18 @@
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { StrictMode } from 'react';
-
-import { Auth0Provider, type AppState } from '@auth0/auth0-react';
 import { createRoot } from 'react-dom/client';
+import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router';
-
-import config from '@/config.ts';
-import './index.css';
+import { PersistGate } from 'redux-persist/integration/react';
 
 import App from './app.tsx';
+import './index.css';
+import { queryClient } from './lib/react-query';
+import { persistor, store } from './store';
 
-const { auth0Domain, auth0ClientId, auth0Audience } = config;
-
-const onRedirectCallback = (appState: AppState | undefined) => {
-  const url = new URL(window.location.href);
-
-  url.searchParams.delete('code');
-  url.searchParams.delete('state');
-  url.searchParams.delete('error');
-  url.searchParams.delete('error_description');
-
-  const returnTo = appState?.returnTo || '/dashboard';
-
-  window.history.replaceState({}, document.title, returnTo);
-};
+import { ENV } from '@/config.ts';
+import { PersistGateLoading } from '@/components/persistent-data-loading.tsx';
 
 const rootElement = document.getElementById('root');
 
@@ -32,21 +22,17 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <Auth0Provider
-      domain={auth0Domain}
-      clientId={auth0ClientId}
-      authorizationParams={{
-        redirect_uri: window.location.origin,
-        audience: auth0Audience,
-        scope: 'openid profile email',
-      }}
-      useRefreshTokens
-      cacheLocation='localstorage'
-      onRedirectCallback={onRedirectCallback}
-    >
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </Auth0Provider>
+    <Provider store={store}>
+      <PersistGate loading={<PersistGateLoading />} persistor={persistor}>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+          {ENV === 'development' && (
+            <ReactQueryDevtools initialIsOpen={false} />
+          )}
+        </QueryClientProvider>
+      </PersistGate>
+    </Provider>
   </StrictMode>,
 );

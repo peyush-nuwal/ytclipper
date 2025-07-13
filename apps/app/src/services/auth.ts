@@ -1,167 +1,173 @@
-import { useEffect } from 'react';
-
-import { useAuth0 } from '@auth0/auth0-react';
-
 import config from '@/config';
+import type { User } from '@/types';
 
-export function useAuthMessageListener() {
-  const { isAuthenticated, isLoading, user, getAccessTokenSilently, logout } =
-    useAuth0();
-
-  useEffect(() => {
-    const allowedOrigins = [
-      'https://app.ytclipper.com',
-      'https://ytclipper.com',
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'chrome-extension://your-extension-id',
-      'moz-extension://your-extension-id',
-      'https://youtube.com',
-    ];
-    const handleMessage = async (event: MessageEvent) => {
-      if (
-        event.origin &&
-        !allowedOrigins.includes(event.origin) &&
-        !event.origin.startsWith('chrome-extension://') &&
-        !event.origin.startsWith('moz-extension://')
-      ) {
-        return;
-      }
-
-      if (event?.data?.type === 'CHECK_AUTH_STATUS') {
-        try {
-          let accessToken = null;
-
-          if (isAuthenticated && !isLoading) {
-            try {
-              accessToken = await getAccessTokenSilently({
-                authorizationParams: {
-                  audience: config.auth0Audience,
-                  scope: 'openid profile email',
-                },
-              });
-            } catch (tokenError) {
-              console.error('Error getting access token:', tokenError);
-            }
-          }
-
-          const response = {
-            type: 'AUTH_STATUS_RESPONSE',
-            isAuthenticated: isAuthenticated && !isLoading,
-            isLoading,
-            user: user || null,
-            accessToken,
-            timestamp: Date.now(),
-          };
-
-          // Send response back to extension
-          if (event.source && 'postMessage' in event.source) {
-            (event.source as Window).postMessage(response, '*');
-          }
-        } catch (error) {
-          const errorResponse = {
-            type: 'AUTH_STATUS_RESPONSE',
-            isAuthenticated: false,
-            isLoading: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-            timestamp: Date.now(),
-          };
-
-          if (event.source && 'postMessage' in event.source) {
-            (event.source as Window).postMessage(errorResponse, event.origin);
-          }
-        }
-      }
-
-      if (event.data.type === 'LOGOUT_REQUEST') {
-        try {
-          // Logout from Auth0
-          await logout({
-            logoutParams: {
-              returnTo: window.location.origin,
-            },
-          });
-
-          // Send confirmation back to extension
-          const response = {
-            type: 'LOGOUT_RESPONSE',
-            success: true,
-            timestamp: Date.now(),
-          };
-
-          if (event.source && 'postMessage' in event.source) {
-            (event.source as Window).postMessage(response, event.origin);
-          }
-        } catch (error) {
-          const errorResponse = {
-            type: 'LOGOUT_RESPONSE',
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-            timestamp: Date.now(),
-          };
-
-          if (event.source && 'postMessage' in event.source) {
-            (event.source as Window).postMessage(errorResponse, event.origin);
-          }
-        }
-      }
-
-      if (event.data.type === 'EXTENSION_AUTH_SUCCESS') {
-        // Extension completed authentication, refresh our state
-
-        // Send current auth status to extension
-        try {
-          let accessToken = null;
-
-          if (isAuthenticated && !isLoading) {
-            accessToken = await getAccessTokenSilently({
-              authorizationParams: {
-                audience: config.auth0Audience,
-                scope: 'openid profile email',
-              },
-            });
-          }
-
-          const response = {
-            type: 'AUTH_UPDATE_RESPONSE',
-            isAuthenticated: isAuthenticated && !isLoading,
-            user: user || null,
-            accessToken,
-            timestamp: Date.now(),
-          };
-
-          if (event.source && 'postMessage' in event.source) {
-            (event.source as Window).postMessage(response, event.origin);
-          }
-        } catch (error) {
-          console.error('Error sending auth update:', error);
-        }
-      }
-    };
-
-    // Listen for messages from extension
-    window.addEventListener('message', handleMessage);
-
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, [isAuthenticated, isLoading, user, getAccessTokenSilently, logout]);
+export interface LoginRequest {
+  email: string;
+  password: string;
 }
 
-// Hook to notify extension when authentication state changes
-export function useExtensionAuthNotification() {
-  const { isAuthenticated, user } = useAuth0();
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+}
 
-  useEffect(() => {
-    // Post message for any extension listening
-    window.postMessage(
-      {
-        type: 'AUTH_STATE_CHANGED',
-        isAuthenticated,
-        user,
-        timestamp: Date.now(),
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  password: string;
+}
+
+export interface VerifyEmailRequest {
+  token: string;
+}
+
+export interface AddPasswordRequest {
+  password: string;
+}
+
+export interface GoogleLoginResponse {
+  auth_url: string;
+}
+
+class AuthApiService {
+  private baseURL: string;
+
+  constructor() {
+    this.baseURL = config.apiUrl;
+  }
+
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+  ): Promise<T> {
+    const url = `${this.baseURL}${endpoint}`;
+    const config: RequestInit = {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
       },
-      '*',
+      credentials: 'include', // Include cookies for authentication
+    };
+
+    const response = await fetch(url, config);
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      const errorMessage =
+        responseData.error?.message ||
+        responseData.message ||
+        `HTTP error! status: ${response.status}`;
+      throw new Error(errorMessage);
+    }
+
+    // Handle structured response format
+    if (responseData.success && responseData.data !== undefined) {
+      return responseData.data;
+    }
+
+    // Handle direct response format
+    return responseData;
+  }
+
+  async getCurrentUser(): Promise<User | null> {
+    try {
+      const response = await this.request<User>('/auth/me');
+      return response;
+    } catch (error) {
+      // If not authenticated, return null instead of throwing
+      if (
+        error instanceof Error &&
+        (error.message.includes('401') || error.message.includes('NO_TOKEN'))
+      ) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async login(credentials: LoginRequest): Promise<User> {
+    const response = await this.request<{ user: User }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    });
+    return response.user;
+  }
+
+  async register(userData: RegisterRequest): Promise<User> {
+    const response = await this.request<{ user: User }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+    return response.user;
+  }
+
+  async loginWithGoogle(): Promise<GoogleLoginResponse> {
+    // Get the auth URL from the backend first
+    const response = await this.request<GoogleLoginResponse>(
+      '/auth/google/login',
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Origin: window.location.origin, // Explicitly set the origin
+        },
+      },
     );
-  }, [isAuthenticated, user]);
+
+    // Now redirect to the Google OAuth URL
+    window.location.href = response.auth_url;
+    return response;
+  }
+
+  async logout(): Promise<void> {
+    await this.request('/auth/logout', {
+      method: 'POST',
+    });
+  }
+
+  async forgotPassword(data: ForgotPasswordRequest): Promise<void> {
+    await this.request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async resetPassword(data: ResetPasswordRequest): Promise<void> {
+    await this.request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async verifyEmail(data: VerifyEmailRequest): Promise<void> {
+    await this.request('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async addPassword(data: AddPasswordRequest): Promise<void> {
+    await this.request('/auth/add-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async handleAuthCallback(): Promise<boolean> {
+    try {
+      // After OAuth callback, check if user is authenticated
+      const user = await this.getCurrentUser();
+      return !!user;
+    } catch (error) {
+      console.error('Auth callback error:', error);
+      return false;
+    }
+  }
 }
+
+export const authApi = new AuthApiService();
