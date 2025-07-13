@@ -1,4 +1,4 @@
--- +migrate Up
+-- +goose Up
 -- Add database indexes for performance
 
 -- Users table indexes
@@ -14,8 +14,8 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expir
 
 -- User sessions table indexes
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_session_token ON user_sessions(session_token);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_expires_at ON user_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_is_active ON user_sessions(is_active);
 
 -- Videos table indexes
 CREATE INDEX IF NOT EXISTS idx_videos_user_id ON videos(user_id);
@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_videos_channel_id ON videos(channel_id);
 CREATE INDEX IF NOT EXISTS idx_videos_published_at ON videos(published_at);
 CREATE INDEX IF NOT EXISTS idx_videos_created_at ON videos(created_at);
 
--- +migrate Down
+-- +goose Down
 -- Drop all indexes
 
 -- Users table indexes
@@ -40,8 +40,8 @@ DROP INDEX IF EXISTS idx_refresh_tokens_expires_at;
 
 -- User sessions table indexes
 DROP INDEX IF EXISTS idx_user_sessions_user_id;
-DROP INDEX IF EXISTS idx_user_sessions_session_token;
 DROP INDEX IF EXISTS idx_user_sessions_expires_at;
+DROP INDEX IF EXISTS idx_user_sessions_is_active;
 
 -- Videos table indexes
 DROP INDEX IF EXISTS idx_videos_user_id;

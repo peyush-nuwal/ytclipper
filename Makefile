@@ -55,20 +55,22 @@ migrate-create: ## Create a new migration (usage: make migrate-create desc="your
 		echo "Error: description is required. Usage: make migrate-create desc=\"your description\""; \
 		exit 1; \
 	fi
-	cd backend && go run cmd/migrate/main.go -command=create -desc="$(desc)"
+	cd backend && goose -dir migrations create "$(desc)" sql
 
 migrate-up: ## Run all pending migrations
-	cd backend && go run cmd/migrate/main.go -command=up
+	cd backend && source .env && goose -dir migrations postgres "$$DATABASE_URL" up
 
-migrate-down: ## Rollback migrations (usage: make migrate-down steps=1)
-	@if [ -z "$(steps)" ]; then \
-		echo "Error: steps is required. Usage: make migrate-down steps=N"; \
-		exit 1; \
-	fi
-	cd backend && go run cmd/migrate/main.go -command=down -steps=$(steps)
+migrate-down: ## Rollback one migration
+	cd backend && source .env && goose -dir migrations postgres "$$DATABASE_URL" down
 
 migrate-status: ## Show migration status
-	cd backend && go run cmd/migrate/main.go -command=status
+	cd backend && source .env && goose -dir migrations postgres "$$DATABASE_URL" status
+
+migrate-reset: ## Reset database (rollback all and reapply)
+	@echo "Warning: This will reset your database. Press Ctrl+C to cancel or Enter to continue..."
+	@read
+	cd backend && source .env && goose -dir migrations postgres "$$DATABASE_URL" reset
+	cd backend && source .env && goose -dir migrations postgres "$$DATABASE_URL" up
 
 # Frontend
 frontend-shell: ## Connect to frontend container shell
