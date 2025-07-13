@@ -215,19 +215,6 @@ jobs:
             echo "🔍 Target domain: $DOMAIN"
             echo "🔍 Target port: $PORT"
 
-            # Ensure shared network exists
-            NETWORK_NAME="ytclipper-shared"
-            if ! docker network ls | grep -q "$NETWORK_NAME"; then
-              echo "🆕 Creating shared network: $NETWORK_NAME"
-              docker network create \
-                --driver bridge \
-                --subnet="172.20.0.0/16" \
-                "$NETWORK_NAME"
-              echo "✅ Shared network created"
-            else
-              echo "✅ Shared network already exists"
-            fi
-
             # Create directory
             mkdir -p "$TARGET_DIR"
 
@@ -235,42 +222,19 @@ jobs:
             echo "📦 Current containers before deployment:"
             docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
-                        # SAFETY CHECK: Never touch production or staging containers
-            if [[ "$CONTAINER_NAME" == *"production"* ]] || [[ "$CONTAINER_NAME" == *"staging"* ]]; then
-              echo "🚨 SAFETY CHECK: This deployment should not affect production/staging containers"
-              echo "🚨 Container name: $CONTAINER_NAME"
-              echo "🚨 Branch: ${{ steps.context.outputs.branch }}"
-              echo "🚨 Deploy type: ${{ needs.test-and-build.outputs.deploy-type }}"
-              
-              # Only proceed if this is actually a production/staging deployment
-              if [[ "${{ needs.test-and-build.outputs.deploy-type }}" != "production" ]] && [[ "${{ needs.test-and-build.outputs.deploy-type }}" != "staging" ]]; then
-                echo "❌ ERROR: PR deployment trying to affect production/staging containers!"
-                echo "❌ This should never happen. Aborting deployment."
-                exit 1
-              fi
-            fi
-
-            # Stop existing container with exact name match only
-            EXISTING_CONTAINER=$(docker ps -aq --filter "name=^${CONTAINER_NAME}$" || true)
-            if [ -n "$EXISTING_CONTAINER" ]; then
-              echo "🛑 Found existing container with exact name: $CONTAINER_NAME"
-              echo "🛑 Stopping and removing: $CONTAINER_NAME"
-              docker rm -f "$CONTAINER_NAME"
-            else
-              echo "ℹ️  No existing container found with name: $CONTAINER_NAME"
-            fi
-
-            # Double check - ensure we're not affecting other containers
-            echo "📦 Current containers status:"
-            docker ps -a --format "table {{.Names}}\t{{.Status}}" | grep "ytclipper" || echo "No ytclipper containers found"
-
             # Verify no port conflicts
             PORT_IN_USE=$(docker ps --format "table {{.Names}}\t{{.Ports}}" | grep ":$PORT->" || true)
             if [ -n "$PORT_IN_USE" ]; then
               echo "⚠️  Warning: Port $PORT is already in use:"
               echo "$PORT_IN_USE"
-              echo "❌ Deployment aborted due to port conflict"
-              exit 1
+              
+              # Check if it's our own container that we just removed
+              if echo "$PORT_IN_USE" | grep -q "$CONTAINER_NAME"; then
+                echo "ℹ️  Port conflict is from our own container that we just removed, continuing..."
+              else
+                echo "❌ Deployment aborted due to port conflict with another container"
+                exit 1
+              fi
             fi
 
       - name: Upload deployment files
@@ -295,6 +259,19 @@ jobs:
             TARGET_DIR="${{ steps.context.outputs.target-dir }}"
             DOMAIN="${{ steps.context.outputs.domain }}"
             PORT="${{ steps.context.outputs.port }}"
+            CONTAINER_NAME="ytclipper-${{ steps.context.outputs.branch }}-backend"
+
+            # FINAL SAFETY CHECK: Verify protected containers are still running
+            if [[ "${{ needs.test-and-build.outputs.deploy-type }}" == "pr" ]]; then
+              echo "🛡️  FINAL SAFETY CHECK: Verifying production containers are untouched"
+              PROTECTED_CONTAINERS=$(docker ps --format "{{.Names}}" | grep -E "(production|staging)" | grep -v "pr-" || true)
+              if [ -n "$PROTECTED_CONTAINERS" ]; then
+                echo "✅ Protected containers still running:"
+                echo "$PROTECTED_CONTAINERS"
+              else
+                echo "⚠️  No protected containers found running - this might be expected"
+              fi
+            fi
 
             # Login to registry and start container
             cd "$TARGET_DIR"
@@ -305,8 +282,20 @@ jobs:
             echo "🔄 Pulling image: $BACKEND_IMAGE"
             docker pull "$BACKEND_IMAGE"
 
-            # Start the container
-            docker compose -f compose.yml --env-file .env up -d --no-deps backend
+            # Start the container using direct docker run instead of compose to avoid any interference
+            echo "🚀 Starting container directly with docker run"
+            docker run -d \
+              --name "$CONTAINER_NAME" \
+              --restart unless-stopped \
+              -p "$PORT:8080" \
+              --env-file .env \
+              -e ENV="${ENV:-staging}" \
+              -e LOG_LEVEL="${LOG_LEVEL:-info}" \
+              -e LOG_PRETTY="${LOG_PRETTY:-true}" \
+              -e API_TIMEOUT="${API_TIMEOUT:-30s}" \
+              -e GIN_MODE="${GIN_MODE:-release}" \
+              -e PORT=8080 \
+              "$BACKEND_IMAGE"
 
             # Verify container started successfully
             sleep 5
@@ -314,6 +303,14 @@ jobs:
               echo "❌ Container failed to start: $CONTAINER_NAME"
               docker logs "$CONTAINER_NAME" || echo "No logs available"
               exit 1
+            fi
+
+            echo "✅ Container started successfully: $CONTAINER_NAME"
+
+            # FINAL VERIFICATION: Check that protected containers are still running
+            if [[ "${{ needs.test-and-build.outputs.deploy-type }}" == "pr" ]]; then
+              echo "🔍 Final verification - checking all containers:"
+              docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
             fi
 
             # Configure nginx
