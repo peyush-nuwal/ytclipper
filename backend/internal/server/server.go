@@ -5,11 +5,28 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pressly/goose/v3"
 	"github.com/rs/zerolog/log"
 	"github.com/shubhamku044/ytclipper/internal/config"
 	"github.com/shubhamku044/ytclipper/internal/database"
 	"github.com/shubhamku044/ytclipper/internal/router"
 )
+
+// runGooseMigrations runs database migrations using Goose
+func runGooseMigrations(ctx context.Context, db *database.Database) error {
+	// Get the underlying *sql.DB from Bun
+	sqlDB := db.DB.DB
+
+	// Set the migration directory
+	goose.SetBaseFS(nil) // Use filesystem
+
+	// Run migrations
+	if err := goose.Up(sqlDB, "migrations"); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 type Server struct {
 	router *gin.Engine
@@ -24,7 +41,8 @@ func NewServer(cfg *config.Config) *Server {
 		log.Warn().Err(err).Msg("Failed to connect to database, continuing without database connection")
 	} else {
 		// Run database migrations
-		if err := db.RunMigrations(); err != nil {
+		ctx := context.Background()
+		if err := runGooseMigrations(ctx, db); err != nil {
 			log.Error().Err(err).Msg("Failed to run database migrations")
 		} else {
 			log.Info().Msg("Database migrations completed successfully")

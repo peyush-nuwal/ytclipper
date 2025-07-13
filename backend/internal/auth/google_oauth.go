@@ -12,11 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"github.com/shubhamku044/ytclipper/internal/config"
+	"github.com/shubhamku044/ytclipper/internal/database"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
 	"github.com/shubhamku044/ytclipper/internal/models"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"gorm.io/gorm"
 )
 
 type GoogleOAuthService struct {
@@ -24,7 +24,7 @@ type GoogleOAuthService struct {
 	authConfig *config.AuthConfig
 	oauth      *oauth2.Config
 	jwtService *JWTService
-	db         *gorm.DB
+	db         *database.Database
 }
 
 type GoogleUserInfo struct {
@@ -38,7 +38,7 @@ type GoogleUserInfo struct {
 	Locale        string `json:"locale"`
 }
 
-func NewGoogleOAuthService(cfg *config.GoogleOAuthConfig, authCfg *config.AuthConfig, jwtService *JWTService, db *gorm.DB) *GoogleOAuthService {
+func NewGoogleOAuthService(cfg *config.GoogleOAuthConfig, authCfg *config.AuthConfig, jwtService *JWTService, db *database.Database) *GoogleOAuthService {
 	oauth := &oauth2.Config{
 		ClientID:     cfg.ClientID,
 		ClientSecret: cfg.ClientSecret,
@@ -199,21 +199,30 @@ func (g *GoogleOAuthService) getUserInfo(accessToken string) (*GoogleUserInfo, e
 // findOrCreateUser finds an existing user or creates a new one based on Google OAuth info
 func (g *GoogleOAuthService) findOrCreateUser(userInfo *GoogleUserInfo) (*models.User, error) {
 	var user models.User
+	ctx := context.Background()
 
 	// First, try to find user by Google ID
-	if err := g.db.Where("google_id = ?", userInfo.ID).First(&user).Error; err == nil {
+	err := g.db.DB.NewSelect().
+		Model(&user).
+		Where("google_id = ?", userInfo.ID).
+		Scan(ctx)
+	if err == nil {
 		// User exists with this Google ID, update their info
 		user.Name = userInfo.Name
 		user.Picture = userInfo.Picture
 		user.EmailVerified = userInfo.VerifiedEmail
-		if err := g.db.Save(&user).Error; err != nil {
+		if err := g.db.Update(ctx, &user); err != nil {
 			return nil, fmt.Errorf("failed to update user: %w", err)
 		}
 		return &user, nil
 	}
 
 	// If not found by Google ID, try to find by email
-	if err := g.db.Where("email = ?", userInfo.Email).First(&user).Error; err == nil {
+	err = g.db.DB.NewSelect().
+		Model(&user).
+		Where("email = ?", userInfo.Email).
+		Scan(ctx)
+	if err == nil {
 		// User exists with this email, link Google account
 		user.GoogleID = userInfo.ID
 		user.Name = userInfo.Name
@@ -222,7 +231,7 @@ func (g *GoogleOAuthService) findOrCreateUser(userInfo *GoogleUserInfo) (*models
 		provider := "google"
 		user.Provider = &provider
 		user.ProviderID = &userInfo.ID
-		if err := g.db.Save(&user).Error; err != nil {
+		if err := g.db.Update(ctx, &user); err != nil {
 			return nil, fmt.Errorf("failed to link Google account: %w", err)
 		}
 		return &user, nil
@@ -240,7 +249,7 @@ func (g *GoogleOAuthService) findOrCreateUser(userInfo *GoogleUserInfo) (*models
 		EmailVerified: userInfo.VerifiedEmail,
 	}
 
-	if err := g.db.Create(&user).Error; err != nil {
+	if err := g.db.Create(ctx, &user); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 

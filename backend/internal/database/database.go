@@ -3,19 +3,20 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/shubhamku044/ytclipper/internal/config"
-	"github.com/shubhamku044/ytclipper/internal/models"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+	"github.com/uptrace/bun/driver/pgdriver"
+	"github.com/uptrace/bun/extra/bundebug"
 )
 
 type Database struct {
-	DB *gorm.DB
+	DB *bun.DB
 }
 
 func NewDatabase(cfg *config.Config) (*Database, error) {
@@ -25,62 +26,37 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 		dsn = cfg.Database.URL
 	} else {
 		dsn = fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			cfg.Database.Host,
-			cfg.Database.Port,
+			"postgres://%s:%s@%s:%s/%s?sslmode=%s",
 			cfg.Database.User,
 			cfg.Database.Password,
+			cfg.Database.Host,
+			cfg.Database.Port,
 			cfg.Database.Name,
 			cfg.Database.SSLMode,
 		)
 	}
 
-	gormLogger := logger.New(
-		&GormLogWriter{},
-		logger.Config{
-			SlowThreshold:             200 * time.Millisecond,
-			LogLevel:                  logger.Info,
-			IgnoreRecordNotFoundError: true,
-			Colorful:                  false,
-		},
-	)
-
-	var db *gorm.DB
+	// Configure connection with retry logic
+	var sqldb *sql.DB
 	var err error
-	var retryCount int
 	maxRetries := 5
 	retryDelay := 2 * time.Second
 
-	for retryCount < maxRetries {
-		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
-			Logger: gormLogger,
-			NowFunc: func() time.Time {
-				return time.Now().UTC()
-			},
-		})
+	for retryCount := 0; retryCount < maxRetries; retryCount++ {
+		sqldb = sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
 
-		if err == nil {
-			sqlDB, err := db.DB()
-			if err == nil {
-				err = sqlDB.Ping()
-				if err == nil {
-					// Configure connection pool settings
-					sqlDB.SetMaxIdleConns(10)
-					sqlDB.SetMaxOpenConns(100)
-					sqlDB.SetConnMaxLifetime(time.Hour)
-					break
-				}
-			}
+		// Test connection
+		if err = sqldb.Ping(); err == nil {
+			break
 		}
 
-		retryCount++
 		log.Warn().
 			Err(err).
-			Int("retry", retryCount).
+			Int("attempt", retryCount+1).
 			Int("maxRetries", maxRetries).
 			Msg("Failed to connect to database, retrying...")
 
-		if retryCount < maxRetries {
+		if retryCount < maxRetries-1 {
 			time.Sleep(retryDelay)
 			retryDelay *= 2
 		}
@@ -90,60 +66,69 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 		return nil, fmt.Errorf("failed to connect to database after %d attempts: %w", maxRetries, err)
 	}
 
-	log.Info().
-		Str("host", cfg.Database.Host).
-		Str("port", cfg.Database.Port).
-		Str("database", cfg.Database.Name).
-		Str("user", cfg.Database.User).
-		Msg("Successfully connected to database")
+	// Configure connection pool
+	sqldb.SetMaxOpenConns(25)
+	sqldb.SetMaxIdleConns(25)
+	sqldb.SetConnMaxLifetime(5 * time.Minute)
+
+	// Create Bun DB instance
+	db := bun.NewDB(sqldb, pgdialect.New())
+
+	// Add debug logging in development
+	if cfg.Server.Env == "development" {
+		db.AddQueryHook(bundebug.NewQueryHook(
+			bundebug.WithVerbose(true),
+			bundebug.FromEnv("BUNDEBUG"),
+		))
+	}
+
+	log.Info().Msg("Successfully connected to database")
 
 	return &Database{DB: db}, nil
 }
 
-func (db *Database) Close() {
-	if db.DB != nil {
-		sqlDB, err := db.DB.DB()
-		if err == nil {
-			err = sqlDB.Close()
-			if err != nil {
-				log.Error().Err(err).Msg("Error closing database connection")
-			} else {
-				log.Info().Msg("Database connection closed")
-			}
-		}
+func (d *Database) Close() error {
+	if d.DB != nil {
+		return d.DB.Close()
 	}
+	return nil
 }
 
-func (db *Database) Ping(ctx context.Context) error {
-	sqlDB, err := db.DB.DB()
-	if err != nil {
-		return err
-	}
-	return sqlDB.PingContext(ctx)
+func (d *Database) Ping(ctx context.Context) error {
+	return d.DB.Ping()
 }
 
-type GormLogWriter struct{}
-
-func (w *GormLogWriter) Printf(format string, args ...interface{}) {
-	log.Debug().Msgf(format, args...)
+// Transaction wrapper
+func (d *Database) RunInTransaction(ctx context.Context, fn func(ctx context.Context, tx bun.Tx) error) error {
+	return d.DB.RunInTx(ctx, nil, fn)
 }
 
-func (d *Database) RunMigrations() error {
-	return d.DB.AutoMigrate(models.AllModels()...)
+// Basic CRUD operations
+func (d *Database) Create(ctx context.Context, model interface{}) error {
+	_, err := d.DB.NewInsert().Model(model).Exec(ctx)
+	return err
 }
 
-func (d *Database) Create(value interface{}) error {
-	return d.DB.Create(value).Error
+func (d *Database) Find(ctx context.Context, model interface{}, id interface{}) error {
+	return d.DB.NewSelect().Model(model).Where("id = ?", id).Scan(ctx)
 }
 
-func (d *Database) Find(dest interface{}, id interface{}) error {
-	return d.DB.First(dest, id).Error
+func (d *Database) Update(ctx context.Context, model interface{}) error {
+	_, err := d.DB.NewUpdate().Model(model).WherePK().Exec(ctx)
+	return err
 }
 
-func (d *Database) Update(value interface{}) error {
-	return d.DB.Save(value).Error
+func (d *Database) Delete(ctx context.Context, model interface{}) error {
+	_, err := d.DB.NewDelete().Model(model).WherePK().Exec(ctx)
+	return err
 }
 
-func (d *Database) Delete(value interface{}) error {
-	return d.DB.Delete(value).Error
+// Soft delete support
+func (d *Database) SoftDelete(ctx context.Context, model interface{}) error {
+	_, err := d.DB.NewUpdate().
+		Model(model).
+		Set("deleted_at = ?", time.Now()).
+		WherePK().
+		Exec(ctx)
+	return err
 }

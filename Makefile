@@ -49,6 +49,29 @@ backend-logs: ## Show backend logs
 backend-test: ## Run backend tests
 	cd backend && go test ./...
 
+# Database migrations
+migrate-create: ## Create a new migration (usage: make migrate-create desc="your description")
+	@if [ -z "$(desc)" ]; then \
+		echo "Error: description is required. Usage: make migrate-create desc=\"your description\""; \
+		exit 1; \
+	fi
+	cd backend && goose -dir migrations create "$(desc)" sql
+
+migrate-up: ## Run all pending migrations
+	cd backend && source .env && goose -dir migrations postgres "$$DATABASE_URL" up
+
+migrate-down: ## Rollback one migration
+	cd backend && source .env && goose -dir migrations postgres "$$DATABASE_URL" down
+
+migrate-status: ## Show migration status
+	cd backend && source .env && goose -dir migrations postgres "$$DATABASE_URL" status
+
+migrate-reset: ## Reset database (rollback all and reapply)
+	@echo "Warning: This will reset your database. Press Ctrl+C to cancel or Enter to continue..."
+	@read
+	cd backend && source .env && goose -dir migrations postgres "$$DATABASE_URL" reset
+	cd backend && source .env && goose -dir migrations postgres "$$DATABASE_URL" up
+
 # Frontend
 frontend-shell: ## Connect to frontend container shell
 	docker compose -f docker/compose.yml exec app sh

@@ -1,24 +1,25 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"github.com/shubhamku044/ytclipper/internal/config"
+	"github.com/shubhamku044/ytclipper/internal/database"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
 	"github.com/shubhamku044/ytclipper/internal/models"
-	"gorm.io/gorm"
 )
 
 type AuthMiddleware struct {
 	jwtService *JWTService
 	config     *config.AuthConfig
-	db         *gorm.DB
+	db         *database.Database
 }
 
-func NewAuthMiddleware(jwtService *JWTService, config *config.AuthConfig, db *gorm.DB) *AuthMiddleware {
+func NewAuthMiddleware(jwtService *JWTService, config *config.AuthConfig, db *database.Database) *AuthMiddleware {
 	return &AuthMiddleware{
 		jwtService: jwtService,
 		config:     config,
@@ -139,7 +140,12 @@ func (a *AuthMiddleware) setAuthCookies(c *gin.Context, tokenPair *TokenPair) {
 func (a *AuthMiddleware) setUserContext(c *gin.Context, claims *AccessTokenClaims) {
 	// Fetch user details from database for complete information
 	var user models.User
-	if err := a.db.Where("id = ?", claims.UserID).First(&user).Error; err != nil {
+	ctx := context.Background()
+	err := a.db.DB.NewSelect().
+		Model(&user).
+		Where("id = ?", claims.UserID).
+		Scan(ctx)
+	if err != nil {
 		log.Error().Err(err).Str("user_id", claims.UserID).Msg("Failed to fetch user details")
 		// Fall back to claims data if database fetch fails
 		c.Set("user_id", claims.UserID)
@@ -159,8 +165,8 @@ func (a *AuthMiddleware) setUserContext(c *gin.Context, claims *AccessTokenClaim
 	c.Set("user_provider", user.Provider)
 	c.Set("user_email_verified", user.EmailVerified)
 	c.Set("user_has_password", user.Password != "")
+	c.Set("user", &user)
 	c.Set("claims", claims)
-	c.Set("user", user)
 }
 
 // Helper functions for getting user information from context

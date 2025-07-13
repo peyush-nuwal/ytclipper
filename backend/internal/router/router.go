@@ -33,9 +33,9 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 
 	jwtService := auth.NewJWTService(&cfg.JWT)
 	emailService := auth.NewEmailService()
-	googleService := auth.NewGoogleOAuthService(&cfg.Google, &cfg.Auth, jwtService, db.DB)
-	authMiddleware := auth.NewAuthMiddleware(jwtService, &cfg.Auth, db.DB)
-	authHandlers := auth.NewAuthHandlers(googleService, authMiddleware, jwtService, emailService, db.DB)
+	googleService := auth.NewGoogleOAuthService(&cfg.Google, &cfg.Auth, jwtService, db)
+	authMiddleware := auth.NewAuthMiddleware(jwtService, &cfg.Auth, db)
+	authHandlers := auth.NewAuthHandlers(googleService, authMiddleware, jwtService, emailService, db)
 
 	r.NoRoute(func(c *gin.Context) {
 		middleware.RespondWithError(c, http.StatusNotFound, "NOT_FOUND", "The requested resource could not be found", gin.H{
