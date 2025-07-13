@@ -1,13 +1,13 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shubhamku044/ytclipper/internal/database"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
-	"gorm.io/gorm"
-
 	"github.com/shubhamku044/ytclipper/internal/models"
 )
 
@@ -16,10 +16,10 @@ type AuthHandlers struct {
 	authMiddleware *AuthMiddleware
 	jwtService     *JWTService
 	emailService   *EmailService
-	db             *gorm.DB
+	db             *database.Database
 }
 
-func NewAuthHandlers(googleService *GoogleOAuthService, authMiddleware *AuthMiddleware, jwtService *JWTService, emailService *EmailService, db *gorm.DB) *AuthHandlers {
+func NewAuthHandlers(googleService *GoogleOAuthService, authMiddleware *AuthMiddleware, jwtService *JWTService, emailService *EmailService, db *database.Database) *AuthHandlers {
 	return &AuthHandlers{
 		googleService:  googleService,
 		authMiddleware: authMiddleware,
@@ -160,9 +160,15 @@ func (h *AuthHandlers) RegisterHandler(c *gin.Context) {
 		return
 	}
 
+	ctx := context.Background()
+
 	// Check if user already exists
 	var existingUser models.User
-	if err := h.db.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
+	err := h.db.DB.NewSelect().
+		Model(&existingUser).
+		Where("email = ?", req.Email).
+		Scan(ctx)
+	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "User already exists"})
 		return
 	}
@@ -197,7 +203,7 @@ func (h *AuthHandlers) RegisterHandler(c *gin.Context) {
 		EmailVerificationExpiry: &[]time.Time{h.emailService.GetTokenExpiry()}[0],
 	}
 
-	if err := h.db.Create(&user).Error; err != nil {
+	if err := h.db.Create(ctx, &user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
@@ -227,26 +233,22 @@ func (h *AuthHandlers) LoginHandler(c *gin.Context) {
 		return
 	}
 
+	ctx := context.Background()
+
 	// Find user by email
 	var user models.User
-	if err := h.db.Where("email = ?", req.Email).First(&user).Error; err != nil {
+	err := h.db.DB.NewSelect().
+		Model(&user).
+		Where("email = ?", req.Email).
+		Scan(ctx)
+	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
 
-	// Check if user has a password (not OAuth-only user)
+	// Check if user has a password (might be OAuth only)
 	if user.Password == "" {
-		// Check if user has Google account linked
-		if user.GoogleID != "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error":              "This email is associated with a Google account. Please login with Google or add a password to your account.",
-				"has_google_account": true,
-			})
-		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "No password set for this account. Please use Google login or reset your password.",
-			})
-		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "This account uses OAuth login. Please use Google login or add a password first."})
 		return
 	}
 
@@ -275,12 +277,24 @@ func (h *AuthHandlers) LoginHandler(c *gin.Context) {
 		return
 	}
 
-	// Set HTTP-only cookies
+	// Set cookies
 	h.jwtService.SetTokenCookies(c, accessToken, refreshToken)
 
+	// Determine available authentication methods
+	authMethods := []string{}
+	if user.GoogleID != "" {
+		authMethods = append(authMethods, "google")
+	}
+	if user.Password != "" {
+		authMethods = append(authMethods, "password")
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Login successful",
-		"user":    user,
+		"message":      "Login successful",
+		"user":         user,
+		"authMethods":  authMethods,
+		"accessToken":  accessToken,
+		"refreshToken": refreshToken,
 	})
 }
 
@@ -292,17 +306,23 @@ func (h *AuthHandlers) ForgotPasswordHandler(c *gin.Context) {
 		return
 	}
 
+	ctx := context.Background()
+
 	// Find user by email
 	var user models.User
-	if err := h.db.Where("email = ?", req.Email).First(&user).Error; err != nil {
+	err := h.db.DB.NewSelect().
+		Model(&user).
+		Where("email = ?", req.Email).
+		Scan(ctx)
+	if err != nil {
 		// Don't reveal if email exists or not
 		c.JSON(http.StatusOK, gin.H{
-			"message": "If the email exists, a password reset link has been sent",
+			"message": "If the email exists, a password reset link has been sent.",
 		})
 		return
 	}
 
-	// Generate password reset token
+	// Generate reset token
 	resetToken, err := h.emailService.GenerateToken()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate reset token"})
@@ -310,26 +330,22 @@ func (h *AuthHandlers) ForgotPasswordHandler(c *gin.Context) {
 	}
 
 	// Update user with reset token
-	expiry := h.emailService.GetTokenExpiry()
-	if err := h.db.Model(&user).Updates(models.User{
-		PasswordResetToken:  resetToken,
-		PasswordResetExpiry: &expiry,
-	}).Error; err != nil {
+	user.PasswordResetToken = resetToken
+	user.PasswordResetExpiry = &[]time.Time{h.emailService.GetTokenExpiry()}[0]
+
+	if err := h.db.Update(ctx, &user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save reset token"})
 		return
 	}
 
-	// Send password reset email
+	// Send reset email
 	if err := h.emailService.SendPasswordResetEmail(user.Email, resetToken); err != nil {
-		// Log error but don't fail request
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Password reset email failed to send, please try again",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send reset email"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "If the email exists, a password reset link has been sent",
+		"message": "Password reset link sent to your email.",
 	})
 }
 
@@ -341,16 +357,16 @@ func (h *AuthHandlers) ResetPasswordHandler(c *gin.Context) {
 		return
 	}
 
+	ctx := context.Background()
+
 	// Find user by reset token
 	var user models.User
-	if err := h.db.Where("password_reset_token = ?", req.Token).First(&user).Error; err != nil {
+	err := h.db.DB.NewSelect().
+		Model(&user).
+		Where("password_reset_token = ? AND password_reset_expiry > ?", req.Token, time.Now()).
+		Scan(ctx)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired reset token"})
-		return
-	}
-
-	// Check if token is expired
-	if h.emailService.IsTokenExpired(user.PasswordResetExpiry) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Reset token has expired"})
 		return
 	}
 
@@ -368,17 +384,17 @@ func (h *AuthHandlers) ResetPasswordHandler(c *gin.Context) {
 	}
 
 	// Update user password and clear reset token
-	if err := h.db.Model(&user).Updates(models.User{
-		Password:            hashedPassword,
-		PasswordResetToken:  "",
-		PasswordResetExpiry: nil,
-	}).Error; err != nil {
+	user.Password = hashedPassword
+	user.PasswordResetToken = ""
+	user.PasswordResetExpiry = nil
+
+	if err := h.db.Update(ctx, &user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Password reset successful",
+		"message": "Password reset successful. You can now login with your new password.",
 	})
 }
 
@@ -390,31 +406,31 @@ func (h *AuthHandlers) VerifyEmailHandler(c *gin.Context) {
 		return
 	}
 
+	ctx := context.Background()
+
 	// Find user by verification token
 	var user models.User
-	if err := h.db.Where("email_verification_token = ?", req.Token).First(&user).Error; err != nil {
+	err := h.db.DB.NewSelect().
+		Model(&user).
+		Where("email_verification_token = ? AND email_verification_expiry > ?", req.Token, time.Now()).
+		Scan(ctx)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired verification token"})
 		return
 	}
 
-	// Check if token is expired
-	if h.emailService.IsTokenExpired(user.EmailVerificationExpiry) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Verification token has expired"})
-		return
-	}
+	// Update user as verified
+	user.EmailVerified = true
+	user.EmailVerificationToken = ""
+	user.EmailVerificationExpiry = nil
 
-	// Update user as verified and clear verification token
-	if err := h.db.Model(&user).Updates(models.User{
-		EmailVerified:           true,
-		EmailVerificationToken:  "",
-		EmailVerificationExpiry: nil,
-	}).Error; err != nil {
+	if err := h.db.Update(ctx, &user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify email"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Email verified successfully",
+		"message": "Email verified successfully. You can now login.",
 	})
 }
 
@@ -426,27 +442,32 @@ func (h *AuthHandlers) AddPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	// Get user ID from context
-	userIDStr, exists := GetUserID(c)
+	// Get current user from context
+	user, exists := GetUser(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	// Find user in database
-	var user models.User
-	if err := h.db.Where("id = ?", userIDStr).First(&user).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
+	ctx := context.Background()
 
 	// Check if user already has a password
-	if user.Password != "" {
-		c.JSON(http.StatusConflict, gin.H{"error": "User already has password authentication"})
+	var currentUser models.User
+	err := h.db.DB.NewSelect().
+		Model(&currentUser).
+		Where("id = ?", user.ID).
+		Scan(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user"})
 		return
 	}
 
-	// Validate password strength
+	if currentUser.Password != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User already has a password"})
+		return
+	}
+
+	// Validate password
 	if err := ValidatePassword(req.Password); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -460,7 +481,9 @@ func (h *AuthHandlers) AddPasswordHandler(c *gin.Context) {
 	}
 
 	// Update user with password
-	if err := h.db.Model(&user).Update("password", hashedPassword).Error; err != nil {
+	currentUser.Password = hashedPassword
+
+	if err := h.db.Update(ctx, &currentUser); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add password"})
 		return
 	}

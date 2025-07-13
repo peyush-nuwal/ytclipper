@@ -24,7 +24,8 @@ func NewServer(cfg *config.Config) *Server {
 		log.Warn().Err(err).Msg("Failed to connect to database, continuing without database connection")
 	} else {
 		// Run database migrations
-		if err := db.RunMigrations(); err != nil {
+		ctx := context.Background()
+		if err := db.RunFileMigrations(ctx); err != nil {
 			log.Error().Err(err).Msg("Failed to run database migrations")
 		} else {
 			log.Info().Msg("Database migrations completed successfully")
