@@ -70,12 +70,6 @@ migrate-down: ## Rollback migrations (usage: make migrate-down steps=1)
 migrate-status: ## Show migration status
 	cd backend && go run cmd/migrate/main.go -command=status
 
-migrate-reset: ## Reset database (rollback all migrations and run them again)
-	@echo "Warning: This will reset your database. Press Ctrl+C to cancel or Enter to continue..."
-	@read
-	cd backend && go run cmd/migrate/main.go -command=down -steps=999 || true
-	cd backend && go run cmd/migrate/main.go -command=up
-
 # Frontend
 frontend-shell: ## Connect to frontend container shell
 	docker compose -f docker/compose.yml exec app sh

@@ -39,10 +39,8 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 CREATE TABLE IF NOT EXISTS user_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    user_agent VARCHAR(500),
-    ip_address VARCHAR(45),
+    session_token VARCHAR(255) UNIQUE NOT NULL,
     expires_at TIMESTAMP NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP
@@ -68,9 +66,117 @@ CREATE TABLE IF NOT EXISTS videos (
     deleted_at TIMESTAMP
 );
 
+-- Create video_transcripts table
+CREATE TABLE IF NOT EXISTS video_transcripts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    start_time FLOAT NOT NULL,
+    end_time FLOAT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- Create video_analytics table
+CREATE TABLE IF NOT EXISTS video_analytics (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    views BIGINT DEFAULT 0,
+    watch_time BIGINT DEFAULT 0,
+    engagement_rate FLOAT DEFAULT 0,
+    retention_rate FLOAT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- Create clips table
+CREATE TABLE IF NOT EXISTS clips (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    title VARCHAR(500) NOT NULL,
+    description TEXT,
+    start_time FLOAT NOT NULL,
+    end_time FLOAT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- Create tags table
+CREATE TABLE IF NOT EXISTS tags (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) UNIQUE NOT NULL,
+    color VARCHAR(7) DEFAULT '#000000',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- Create clip_tags table (many-to-many relationship)
+CREATE TABLE IF NOT EXISTS clip_tags (
+    clip_id UUID NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    PRIMARY KEY (clip_id, tag_id)
+);
+
+-- Create playlists table
+CREATE TABLE IF NOT EXISTS playlists (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    is_public BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- Create playlist_clips table (many-to-many relationship)
+CREATE TABLE IF NOT EXISTS playlist_clips (
+    playlist_id UUID NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    clip_id UUID NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (playlist_id, clip_id)
+);
+
+-- Create favorites table
+CREATE TABLE IF NOT EXISTS favorites (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    clip_id UUID NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    UNIQUE(user_id, clip_id)
+);
+
+-- Create shared_playlists table
+CREATE TABLE IF NOT EXISTS shared_playlists (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    playlist_id UUID NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    shared_with_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    permission VARCHAR(20) DEFAULT 'view',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    UNIQUE(playlist_id, shared_with_user_id)
+);
+
 -- +migrate Down
 -- Drop all tables in reverse order
 
+DROP TABLE IF EXISTS shared_playlists;
+DROP TABLE IF EXISTS favorites;
+DROP TABLE IF EXISTS playlist_clips;
+DROP TABLE IF EXISTS playlists;
+DROP TABLE IF EXISTS clip_tags;
+DROP TABLE IF EXISTS tags;
+DROP TABLE IF EXISTS clips;
+DROP TABLE IF EXISTS video_analytics;
+DROP TABLE IF EXISTS video_transcripts;
 DROP TABLE IF EXISTS videos;
 DROP TABLE IF EXISTS user_sessions;
 DROP TABLE IF EXISTS refresh_tokens;
