@@ -1,26 +1,28 @@
 # Database Migrations Guide
 
-This guide explains how to work with database migrations in the YTClipper backend using Bun ORM.
+This guide explains how to work with database migrations in the YTClipper backend using Goose migration tool with Bun
+ORM.
 
 ## Overview
 
-Our migration system uses file-based migrations stored in the `backend/migrations/` directory. Each migration is a SQL
-file with both "up" and "down" operations.
+Our migration system uses [Goose](https://github.com/pressly/goose) for database migrations with file-based SQL
+migrations stored in the `backend/migrations/` directory. Each migration is a SQL file with both "up" and "down"
+operations.
 
 ## Migration File Structure
 
-Migration files follow this naming convention:
+Migration files follow Goose's timestamp naming convention:
 
 ```
-001_initial_schema.sql
-002_add_indexes.sql
-003_add_user_preferences.sql
+20250713000001_initial_schema.sql
+20250713000002_add_indexes.sql
+20250713000003_add_user_preferences.sql
 ```
 
 Each file contains:
 
 ```sql
--- +migrate Up
+-- +goose Up
 -- Description of what this migration does
 
 -- Your SQL for applying the migration
@@ -29,7 +31,7 @@ CREATE TABLE example (
     name VARCHAR(255) NOT NULL
 );
 
--- +migrate Down
+-- +goose Down
 -- Description of how to rollback this migration
 
 -- Your SQL for rolling back the migration
@@ -44,7 +46,7 @@ DROP TABLE IF EXISTS example;
 make migrate-create desc="add user preferences table"
 ```
 
-This creates a new migration file with the next sequential number and your description.
+This creates a new migration file with a timestamp and your description.
 
 ### Run All Pending Migrations
 
@@ -91,12 +93,12 @@ make migrate-create desc="add profile_picture to users"
 Edit the generated file:
 
 ```sql
--- +migrate Up
+-- +goose Up
 -- Add profile_picture column to users table
 
 ALTER TABLE users ADD COLUMN profile_picture VARCHAR(500);
 
--- +migrate Down
+-- +goose Down
 -- Remove profile_picture column from users table
 
 ALTER TABLE users DROP COLUMN profile_picture;
@@ -109,7 +111,7 @@ make migrate-create desc="create notifications table"
 ```
 
 ```sql
--- +migrate Up
+-- +goose Up
 -- Create notifications table
 
 CREATE TABLE notifications (
@@ -128,7 +130,7 @@ CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at);
 CREATE INDEX idx_notifications_read ON notifications(read);
 
--- +migrate Down
+-- +goose Down
 -- Drop notifications table
 
 DROP TABLE IF EXISTS notifications;
@@ -141,12 +143,12 @@ make migrate-create desc="increase video title length"
 ```
 
 ```sql
--- +migrate Up
+-- +goose Up
 -- Increase video title column length
 
 ALTER TABLE videos ALTER COLUMN title TYPE VARCHAR(1000);
 
--- +migrate Down
+-- +goose Down
 -- Revert video title column length
 
 ALTER TABLE videos ALTER COLUMN title TYPE VARCHAR(500);
@@ -159,14 +161,14 @@ make migrate-create desc="add performance indexes"
 ```
 
 ```sql
--- +migrate Up
+-- +goose Up
 -- Add performance indexes
 
 CREATE INDEX idx_videos_channel_id ON videos(channel_id);
 CREATE INDEX idx_clips_start_time ON clips(start_time);
 CREATE INDEX idx_users_email_verified ON users(email_verified);
 
--- +migrate Down
+-- +goose Down
 -- Remove performance indexes
 
 DROP INDEX IF EXISTS idx_videos_channel_id;
@@ -181,12 +183,12 @@ make migrate-create desc="add unique constraint to video youtube_id"
 ```
 
 ```sql
--- +migrate Up
+-- +goose Up
 -- Add unique constraint to video youtube_id
 
 ALTER TABLE videos ADD CONSTRAINT uk_videos_youtube_id UNIQUE (youtube_id);
 
--- +migrate Down
+-- +goose Down
 -- Remove unique constraint from video youtube_id
 
 ALTER TABLE videos DROP CONSTRAINT IF EXISTS uk_videos_youtube_id;
@@ -212,7 +214,7 @@ Always write proper down migrations. Even if you don't plan to rollback, having 
 
 ### 3. Use Transactions Carefully
 
-PostgreSQL automatically wraps each migration in a transaction, but be aware of:
+Goose automatically wraps each migration in a transaction, but be aware of:
 
 - DDL operations that can't be rolled back
 - Long-running migrations that might lock tables
@@ -222,7 +224,7 @@ PostgreSQL automatically wraps each migration in a transaction, but be aware of:
 For complex data transformations:
 
 ```sql
--- +migrate Up
+-- +goose Up
 -- Migrate user preferences from JSON to separate table
 
 -- Create new table
@@ -247,7 +249,7 @@ WHERE preferences IS NOT NULL;
 -- Remove old column
 ALTER TABLE users DROP COLUMN IF EXISTS preferences;
 
--- +migrate Down
+-- +goose Down
 -- Rollback user preferences migration
 
 -- Add back old column
@@ -323,11 +325,11 @@ Have a rollback plan ready:
 
 ## Integration with Application
 
-The migration system is integrated into the application startup:
+Goose migrations are integrated into the application startup:
 
 ```go
 // In internal/server/server.go
-if err := db.RunFileMigrations(ctx); err != nil {
+if err := goose.Up(database.GetDB().DB, "migrations"); err != nil {
     log.Error().Err(err).Msg("Failed to run database migrations")
     return err
 }
@@ -335,38 +337,71 @@ if err := db.RunFileMigrations(ctx); err != nil {
 
 This ensures migrations are applied automatically when the application starts.
 
-## CLI Tool
+## Goose CLI Commands
 
-The migration CLI tool is located at `cmd/migrate/main.go` and provides:
-
-- `create`: Generate new migration files
-- `up`: Apply pending migrations
-- `down`: Rollback migrations
-- `status`: Show migration status
-
-You can also run it directly:
+You can also run Goose commands directly:
 
 ```bash
-cd backend
-go run cmd/migrate/main.go -command=status
+# Set environment variables first
+source docker/.env
+
+# Check status
+goose -dir migrations postgres "$DATABASE_URL" status
+
+# Apply migrations
+goose -dir migrations postgres "$DATABASE_URL" up
+
+# Rollback migrations
+goose -dir migrations postgres "$DATABASE_URL" down
+
+# Create new migration
+goose -dir migrations create add_user_preferences sql
 ```
+
+## Migration Tracking
+
+Goose tracks applied migrations in the `goose_db_version` table:
+
+- `id` - Auto-incrementing primary key
+- `version_id` - Migration timestamp (e.g., "20250713000001")
+- `is_applied` - Boolean indicating if migration is applied
+- `tstamp` - Timestamp when migration was applied
 
 ## File Structure
 
 ```
 backend/
 ├── migrations/
-│   ├── 001_initial_schema.sql
-│   ├── 002_add_indexes.sql
-│   └── 003_add_user_preferences.sql
-├── cmd/
-│   └── migrate/
-│       └── main.go
-└── internal/
-    └── database/
-        ├── database.go
-        ├── file_migrations.go
-        └── migrations.go (legacy)
+│   ├── 20250713000001_initial_schema.sql
+│   ├── 20250713000002_add_indexes.sql
+│   └── 20250713000003_add_user_preferences.sql
+├── internal/
+│   ├── database/
+│   │   └── database.go
+│   └── server/
+│       └── server.go
+└── Makefile
 ```
 
-The system tracks applied migrations in the `file_migrations` table in your database.
+## Why Goose?
+
+We chose Goose for our migration system because:
+
+- **Battle-tested**: Used by many production applications
+- **Simple**: Easy to understand and use
+- **Flexible**: Supports both SQL and Go migrations
+- **Integration**: Works well with any Go database driver
+- **Features**: Provides versioning, rollbacks, and status checking
+- **Community**: Active community and good documentation
+
+## Quick Reference
+
+| Command                                  | Description                  |
+| ---------------------------------------- | ---------------------------- |
+| `make migrate-create desc="description"` | Create new migration         |
+| `make migrate-up`                        | Apply all pending migrations |
+| `make migrate-down steps=N`              | Rollback N migrations        |
+| `make migrate-status`                    | Show migration status        |
+| `make migrate-reset`                     | Reset database (dev only)    |
+
+The migration system automatically runs on application startup and is ready for production use! 🚀
