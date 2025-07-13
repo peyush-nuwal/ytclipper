@@ -222,6 +222,19 @@ jobs:
             echo "📦 Current containers before deployment:"
             docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
+            # SAFE CONTAINER CLEANUP: Only remove the exact container we're about to deploy
+            echo "🔍 Checking for existing container with name: $CONTAINER_NAME"
+            EXISTING_CONTAINER=$(docker ps -aq --filter "name=^${CONTAINER_NAME}$" || true)
+            if [ -n "$EXISTING_CONTAINER" ]; then
+              echo "🛑 Found existing container with EXACT name: $CONTAINER_NAME"
+              echo "🛑 Container ID: $EXISTING_CONTAINER"
+              echo "🛑 Stopping and removing ONLY this specific container"
+              docker rm -f "$CONTAINER_NAME"
+              echo "✅ Container removed successfully"
+            else
+              echo "ℹ️  No existing container found with exact name: $CONTAINER_NAME"
+            fi
+
             # Verify no port conflicts
             PORT_IN_USE=$(docker ps --format "table {{.Names}}\t{{.Ports}}" | grep ":$PORT->" || true)
             if [ -n "$PORT_IN_USE" ]; then
