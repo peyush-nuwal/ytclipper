@@ -173,7 +173,7 @@ func (g *GoogleOAuthService) CallbackHandler() gin.HandlerFunc {
 
 		// Redirect to frontend
 		frontendURL := g.getFrontendURL()
-		c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/auth/callback?auth=success")
+		c.Redirect(http.StatusTemporaryRedirect, frontendURL)
 	}
 }
 
@@ -276,6 +276,7 @@ func (g *GoogleOAuthService) getFrontendURL() string {
 	}
 
 	log.Info().Str("origin", origin).Msg("Redirecting to frontend URL")
+	fmt.Printf("🔥🔥🔥🔥🔥🔥Redirecting to frontend URL: %s\n🔥🔥🔥🔥🔥🔥", origin)
 	return origin
 }
 
