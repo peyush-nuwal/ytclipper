@@ -4,8 +4,10 @@ export interface Manifest {
   version: string;
   description: string;
   default_locale?: string;
+  key?: string; // For development - provides stable extension ID
   permissions?: string[];
   host_permissions?: string[];
+  optional_permissions?: string[];
   background?: {
     service_worker: string;
     type?: 'module';
@@ -22,6 +24,11 @@ export interface Manifest {
     default_icon?: Record<string, string>;
   };
   icons?: Record<string, string>;
+  externally_connectable?: {
+    matches?: string[];
+    ids?: string[];
+    accepts_tls_channel_id?: boolean;
+  };
   homepage_url?: string;
   author?: string;
 }

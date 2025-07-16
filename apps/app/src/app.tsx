@@ -1,5 +1,7 @@
 import { Route, Routes } from 'react-router';
 
+import { useEffect } from 'react';
+import { AuthCallback } from './components/auth-callback';
 import Loading from './components/loading';
 import { NotificationSystem } from './components/NotificationSystem';
 import { ProtectedRoute } from './components/protected-route';
@@ -12,10 +14,41 @@ import {
   VideoDetailPage,
   VideosPage,
 } from './pages';
-import { AuthCallback } from './components/auth-callback';
+import { syncAuthState } from './services/extension-sync';
 
 const App = () => {
-  const { isInitialized } = useAuth();
+  const { isInitialized, isAuthenticated, user, token, tokenExpiry } =
+    useAuth();
+
+  useEffect(() => {
+    if (isInitialized) {
+      syncAuthState(isAuthenticated, user)
+        .then((result) => {
+          if (result.success) {
+            console.log('✅ App-level extension sync successful');
+          } else {
+            console.warn('❌ App-level extension sync failed:', result.error);
+          }
+        })
+        .catch((error) => {
+          console.warn('❌ App-level extension sync error:', error);
+        });
+    }
+  }, [isInitialized, isAuthenticated, user, token, tokenExpiry]);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== window) {
+        return;
+      }
+      if (event.data.type === 'CHECK_AUTH_STATUS') {
+        syncAuthState(isAuthenticated, user).catch(console.warn);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [user, isAuthenticated, tokenExpiry, token]);
 
   if (!isInitialized) {
     return <Loading />;
@@ -27,7 +60,6 @@ const App = () => {
         <Route path='/' element={<HomePage />} />
         <Route path='/auth' element={<LoginPage />} />
         <Route path='/auth/callback' element={<AuthCallback />} />
-
         <Route
           path='/dashboard'
           element={

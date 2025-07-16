@@ -7,7 +7,7 @@ const manifest: Manifest = {
   description: '__MSG_extensionDescription__',
   default_locale: 'en',
 
-  permissions: ['activeTab', 'storage', 'scripting', 'tabs'],
+  permissions: ['activeTab', 'storage', 'scripting', 'tabs', 'cookies'],
 
   host_permissions: [
     'https://www.youtube.com/*',
@@ -15,7 +15,9 @@ const manifest: Manifest = {
     'https://app.ytclipper.com/*',
     'https://ytclipper.com/*',
     'http://localhost:5173/*',
+    'http://localhost:8080/*',
   ],
+  optional_permissions: ['https://app.ytclipper.com/*'],
 
   background: {
     service_worker: 'src/background/index.js',
@@ -53,6 +55,16 @@ const manifest: Manifest = {
       '128': 'icon128.png',
     },
   },
+
+  externally_connectable: {
+    matches: [
+      'https://app.ytclipper.com/*',
+      'https://ytclipper.com/*',
+      'http://localhost:5173/*',
+      'http://localhost:8080/*',
+    ],
+  },
+
   homepage_url: 'https://ytclipper.com',
 };
 
