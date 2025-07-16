@@ -2,9 +2,27 @@ import { logger } from '@ytclipper/extension-dev-utils';
 
 import { AuthMessage, AuthStorage, UserInfo } from '../types/auth';
 
+interface TimestampRequest {
+  video_id: string;
+  timestamp: number;
+  title: string;
+  note: string;
+  tags: string[];
+}
+
+interface ApiErrorResponse {
+  error?: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
+type ApiRequestData = TimestampRequest | Record<string, unknown>;
+
 logger.info('Background service worker started');
 
 const MY_DOMAIN = 'http://localhost:5173';
+
+const API_URL = 'http://localhost:8080/api/v1';
 
 interface ExternalAuthMessage {
   type: 'WEB_AUTH_SUCCESS' | 'WEB_AUTH_LOGOUT' | 'WEB_AUTH_UPDATE';
@@ -286,6 +304,41 @@ chrome.action.onClicked.addListener(async () => {
   }
 });
 
+async function postToBackend<T = unknown>(
+  url: string,
+  data: ApiRequestData,
+): Promise<{ success: boolean; data?: T; error?: string }> {
+  try {
+    console.log('Post to backend');
+    const res = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      const errRes = (await res
+        .json()
+        .catch(() => null)) as ApiErrorResponse | null;
+      return {
+        success: false,
+        error: errRes?.error || errRes?.message || `HTTP ${res.status}`,
+      };
+    }
+
+    const json = await res.json();
+    return { success: true, data: json };
+  } catch (error: ApiErrorResponse | unknown) {
+    return {
+      success: false,
+      error: (error as ApiErrorResponse)?.message || 'Unknown error',
+    };
+  }
+}
+
 // Handle external messages (from web app via externally_connectable)
 chrome.runtime.onMessageExternal.addListener(handleExternalMessage);
 
@@ -372,6 +425,22 @@ chrome.runtime.onMessage.addListener(
       };
 
       checkAuth();
+      return true;
+    }
+
+    if (message.type === 'SAVE_TIMESTAMP') {
+      const { videoId, timestamp, title, note, tags } = message.data;
+
+      postToBackend(`${API_URL}/timestamps`, {
+        video_id: videoId,
+        timestamp,
+        title,
+        note,
+        tags,
+      }).then((res) => {
+        sendResponse(res);
+      });
+
       return true;
     }
 
