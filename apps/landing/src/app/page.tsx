@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ApiResponse, isSuccessResponse, WaitlistEntryData } from '@/lib/types';
 import Image from 'next/image';
 interface FormState {
@@ -15,12 +15,29 @@ interface ErrorDetail {
 
 export default function Home() {
   const [email, setEmail] = useState('');
+  const [count, setCount] = useState<number | null>(null);
   const [formState, setFormState] = useState<FormState>({
     status: 'idle',
     message: '',
   });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const res = await fetch('/api/waitlist/count');
+        const data = await res.json();
+        if (data.success) {
+          setCount(data.data.count);
+        }
+      } catch (err) {
+        console.error('Failed to fetch waitlist count:', err);
+      }
+    };
+
+    fetchCount();
+  }, []);
 
   const handleWaitlistSubmit = async (
     e: React.FormEvent,
@@ -110,35 +127,20 @@ export default function Home() {
     setEmail('');
   };
 
-  // const scrollToWaitlist = () => {
-  //   setMobileMenuOpen(false);
-  //   emailInputRef.current?.scrollIntoView({
-  //     behavior: 'smooth',
-  //     block: 'center',
-  //   });
-  //   setTimeout(() => {
-  //     emailInputRef.current?.focus();
-  //   }, 500);
-  // };
-
   const renderSuccessState = (message: string, isAlreadyRegistered = false) => (
     <div
-      className={`glass p-6 sm:p-8 border ${
-        isAlreadyRegistered ? 'border-blue/40' : 'border-primary/40'
-      } relative overflow-hidden transform transition-all duration-500 ease-out animate-in slide-in-from-bottom-4 fade-in`}
+      className={`glass p-6 sm:p-8 border ${isAlreadyRegistered ? 'border-blue/40' : 'border-primary/40'
+        } relative overflow-hidden transform transition-all duration-500 ease-out animate-in slide-in-from-bottom-4 fade-in`}
     >
-      {/* Subtle background effect */}
       <div className='absolute inset-0 bg-gradient-to-r from-transparent via-white/2 to-transparent opacity-50'></div>
 
       <div className='relative z-10'>
-        {/* Icon with enhanced animation */}
         <div className='flex items-center justify-center mb-4'>
           <div
-            className={`w-16 h-16 ${
-              isAlreadyRegistered
+            className={`w-16 h-16 ${isAlreadyRegistered
                 ? 'bg-gradient-to-br from-blue to-blue/80'
                 : 'bg-gradient-to-br from-primary to-accent'
-            } rounded-full flex items-center justify-center shadow-xl transform transition-all duration-300 hover:scale-110`}
+              } rounded-full flex items-center justify-center shadow-xl transform transition-all duration-300 hover:scale-110`}
           >
             <svg
               className='w-8 h-8 text-white'
@@ -156,14 +158,12 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Title with gradient text */}
         <h3 className='text-center text-xl sm:text-2xl font-bold mb-3 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent'>
           {isAlreadyRegistered
             ? '🎉 Already on the list!'
             : '🚀 Welcome aboard!'}
         </h3>
 
-        {/* Message with better typography */}
         <p className='text-white/80 text-sm sm:text-base mb-6 text-center leading-relaxed'>
           {message}
         </p>
@@ -275,7 +275,7 @@ export default function Home() {
     // Default form state
     return (
       <form
-        onSubmit={e => handleWaitlistSubmit(e, 'landing-hero')}
+        onSubmit={(e) => handleWaitlistSubmit(e, 'landing-hero')}
         className='flex flex-col gap-3 sm:gap-4'
       >
         <div className='relative group'>
@@ -283,7 +283,7 @@ export default function Home() {
             ref={emailInputRef}
             type='email'
             value={email}
-            onChange={e => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
             placeholder='Enter your email for early access'
             className='input-modern w-full peer focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-300 pl-11 text-white/95 font-medium tracking-wide'
             required
@@ -323,6 +323,13 @@ export default function Home() {
             </>
           )}
         </button>
+        <p className='text-sm text-white/80 text-center font-medium tracking-wide'>
+          🎉{' '}
+          <span className='text-primary font-semibold'>
+            {count ? `${count}+ researchers` : 'Loading...'}
+          </span>{' '}
+          have already joined — don’t miss out!
+        </p>
       </form>
     );
   };
@@ -414,7 +421,6 @@ export default function Home() {
             <span>Coming Soon - Chrome Extension for Researchers</span>
           </div>
 
-          {/* Main Heading */}
           <h1 className='text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-bold text-white mb-6 sm:mb-8 leading-[0.9] tracking-tight'>
             Collect YouTube
             <br />
@@ -595,115 +601,122 @@ export default function Home() {
           {(formState.status === 'idle' ||
             formState.status === 'loading' ||
             formState.status === 'error') && (
-            <form
-              onSubmit={e => handleWaitlistSubmit(e, 'landing-bottom')}
-              className='max-w-md mx-auto flex flex-col gap-3 sm:gap-4 px-4 sm:px-0'
-            >
-              <div className='relative group'>
-                <input
-                  type='email'
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder='Your research email'
-                  className='input-modern w-full peer focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-300 pl-11 text-white/95 font-medium tracking-wide'
-                  required
-                />
-              </div>
-              <button
-                type='submit'
-                disabled={formState.status === 'loading'}
-                className='btn-primary w-full sm:w-auto flex items-center justify-center space-x-2 min-w-[140px] disabled:opacity-50 py-4 sm:py-3 group relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl'
+              <form
+                onSubmit={(e) => handleWaitlistSubmit(e, 'landing-bottom')}
+                className='max-w-md mx-auto flex flex-col gap-3 sm:gap-4 px-4 sm:px-0'
               >
-                {formState.status === 'loading' ? (
-                  <div className='flex items-center space-x-2'>
-                    <div className='flex space-x-1'>
-                      <div className='w-1 h-1 bg-white/70 rounded-full animate-bounce [animation-delay:-0.3s]'></div>
-                      <div className='w-1 h-1 bg-white/70 rounded-full animate-bounce [animation-delay:-0.15s]'></div>
-                      <div className='w-1 h-1 bg-white/70 rounded-full animate-bounce'></div>
+                <div className='relative group'>
+                  <input
+                    type='email'
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder='Your research email'
+                    className='input-modern w-full peer focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-300 pl-11 text-white/95 font-medium tracking-wide'
+                    required
+                  />
+                </div>
+                <button
+                  type='submit'
+                  disabled={formState.status === 'loading'}
+                  className='btn-primary w-full sm:w-auto flex items-center justify-center space-x-2 min-w-[140px] disabled:opacity-50 py-4 sm:py-3 group relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl'
+                >
+                  {formState.status === 'loading' ? (
+                    <div className='flex items-center space-x-2'>
+                      <div className='flex space-x-1'>
+                        <div className='w-1 h-1 bg-white/70 rounded-full animate-bounce [animation-delay:-0.3s]'></div>
+                        <div className='w-1 h-1 bg-white/70 rounded-full animate-bounce [animation-delay:-0.15s]'></div>
+                        <div className='w-1 h-1 bg-white/70 rounded-full animate-bounce'></div>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <>
-                    <span className='relative z-10'>Join Now</span>
-                    <svg
-                      className='w-4 h-4 group-hover:translate-x-1 transition-transform duration-200 relative z-10'
-                      fill='none'
-                      stroke='currentColor'
-                      viewBox='0 0 24 24'
-                    >
-                      <path
-                        strokeLinecap='round'
-                        strokeLinejoin='round'
-                        strokeWidth={2}
-                        d='M13 7l5 5m0 0l-5 5m5-5H6'
-                      />
-                    </svg>
-                    {/* Hover effect overlay */}
-                    <div className='absolute inset-0 bg-gradient-to-r from-accent to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300'></div>
-                  </>
-                )}
-              </button>
-            </form>
-          )}
+                  ) : (
+                    <>
+                      <span className='relative z-10'>Join Now</span>
+                      <svg
+                        className='w-4 h-4 group-hover:translate-x-1 transition-transform duration-200 relative z-10'
+                        fill='none'
+                        stroke='currentColor'
+                        viewBox='0 0 24 24'
+                      >
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth={2}
+                          d='M13 7l5 5m0 0l-5 5m5-5H6'
+                        />
+                      </svg>
+                      {/* Hover effect overlay */}
+                      <div className='absolute inset-0 bg-gradient-to-r from-accent to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300'></div>
+                    </>
+                  )}
+                </button>
+                <p className='text-sm text-white/80 text-center font-medium tracking-wide'>
+                  🎉{' '}
+                  <span className='text-primary font-semibold'>
+                    {count ? `${count}+ researchers` : 'Loading...'}
+                  </span>{' '}
+                  have already joined — don’t miss out!
+                </p>
+              </form>
+            )}
 
           {(formState.status === 'success' ||
             formState.status === 'already_registered') && (
-            <div className='max-w-md mx-auto px-4 sm:px-0'>
-              {formState.status === 'success' ? (
-                <div className='glass p-6 sm:p-8 border border-primary/30'>
-                  <div className='flex items-center justify-center space-x-3 mb-3'>
-                    <div className='w-6 sm:w-8 h-6 sm:h-8 bg-primary rounded-full flex items-center justify-center'>
-                      <svg
-                        className='w-4 sm:w-5 h-4 sm:h-5 text-white'
-                        fill='none'
-                        stroke='currentColor'
-                        viewBox='0 0 24 24'
-                      >
-                        <path
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                          strokeWidth={2}
-                          d='M5 13l4 4L19 7'
-                        />
-                      </svg>
+              <div className='max-w-md mx-auto px-4 sm:px-0'>
+                {formState.status === 'success' ? (
+                  <div className='glass p-6 sm:p-8 border border-primary/30'>
+                    <div className='flex items-center justify-center space-x-3 mb-3'>
+                      <div className='w-6 sm:w-8 h-6 sm:h-8 bg-primary rounded-full flex items-center justify-center'>
+                        <svg
+                          className='w-4 sm:w-5 h-4 sm:h-5 text-white'
+                          fill='none'
+                          stroke='currentColor'
+                          viewBox='0 0 24 24'
+                        >
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth={2}
+                            d='M5 13l4 4L19 7'
+                          />
+                        </svg>
+                      </div>
+                      <span className='text-white font-semibold text-base sm:text-lg'>
+                        Welcome to the revolution!
+                      </span>
                     </div>
-                    <span className='text-white font-semibold text-base sm:text-lg'>
-                      Welcome to the revolution!
-                    </span>
+                    <p className='text-white/70 text-sm sm:text-base'>
+                      {formState.message}
+                    </p>
                   </div>
-                  <p className='text-white/70 text-sm sm:text-base'>
-                    {formState.message}
-                  </p>
-                </div>
-              ) : (
-                <div className='glass p-6 sm:p-8 border border-blue/30'>
-                  <div className='flex items-center justify-center space-x-3 mb-3'>
-                    <div className='w-6 sm:w-8 h-6 sm:h-8 bg-blue rounded-full flex items-center justify-center'>
-                      <svg
-                        className='w-4 sm:w-5 h-4 sm:h-5 text-white'
-                        fill='none'
-                        stroke='currentColor'
-                        viewBox='0 0 24 24'
-                      >
-                        <path
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                          strokeWidth={2}
-                          d='M5 13l4 4L19 7'
-                        />
-                      </svg>
+                ) : (
+                  <div className='glass p-6 sm:p-8 border border-blue/30'>
+                    <div className='flex items-center justify-center space-x-3 mb-3'>
+                      <div className='w-6 sm:w-8 h-6 sm:h-8 bg-blue rounded-full flex items-center justify-center'>
+                        <svg
+                          className='w-4 sm:w-5 h-4 sm:h-5 text-white'
+                          fill='none'
+                          stroke='currentColor'
+                          viewBox='0 0 24 24'
+                        >
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth={2}
+                            d='M5 13l4 4L19 7'
+                          />
+                        </svg>
+                      </div>
+                      <span className='text-white font-semibold text-base sm:text-lg'>
+                        Already with us!
+                      </span>
                     </div>
-                    <span className='text-white font-semibold text-base sm:text-lg'>
-                      Already with us!
-                    </span>
+                    <p className='text-white/70 text-sm sm:text-base'>
+                      {formState.message}
+                    </p>
                   </div>
-                  <p className='text-white/70 text-sm sm:text-base'>
-                    {formState.message}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
         </div>
       </div>
 
