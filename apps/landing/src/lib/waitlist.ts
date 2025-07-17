@@ -11,7 +11,7 @@ export const waitlistSchema = z.object({
     .email('Please enter a valid email address')
     .min(5, 'Email must be at least 5 characters')
     .max(254, 'Email must not exceed 254 characters')
-    .transform(email => email.toLowerCase().trim()),
+    .transform((email) => email.toLowerCase().trim()),
   name: z
     .string()
     .min(1, 'Name is required')
