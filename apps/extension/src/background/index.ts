@@ -52,34 +52,29 @@ function isTokenValid(tokenExpiry?: number): boolean {
 }
 
 async function updatePopupState(): Promise<void> {
-  const result = (await chrome.storage.sync.get([
+  const result = (await chrome.storage.local.get([
     'auth_token',
     'user_info',
     'token_expiry',
   ])) as AuthStorage;
 
-  logger.info('Updating popup state');
-  console.log('Auth Storage:', {
-    hasToken: !!result.auth_token,
-    hasUser: !!result.user_info,
-    tokenExpiry: result.token_expiry,
-    isTokenValid: isTokenValid(result.token_expiry),
-  });
+  // logger.info('Updating popup state');
+  // console.log('Auth Storage:', {
+  //   hasToken: !!result.auth_token,
+  //   hasUser: !!result.user_info,
+  //   tokenExpiry: result.token_expiry,
+  //   isTokenValid: isTokenValid(result.token_expiry),
+  // });
 
   if (result.auth_token && isTokenValid(result.token_expiry)) {
-    logger.info('Popup enabled - user authenticated');
-  } else {
-    logger.info('Popup disabled - user not authenticated');
-
-    // If we have expired or invalid auth data, clear it
-    if (result.auth_token && !isTokenValid(result.token_expiry)) {
-      logger.info('Clearing expired auth data');
-      await chrome.storage.sync.remove([
-        'auth_token',
-        'token_expiry',
-        'user_info',
-      ]);
-    }
+    // logger.info('Popup enabled - user authenticated');
+  } else if (result.auth_token && !isTokenValid(result.token_expiry)) {
+    logger.info('Clearing expired auth data');
+    await chrome.storage.local.remove([
+      'auth_token',
+      'token_expiry',
+      'user_info',
+    ]);
   }
 }
 
@@ -224,7 +219,7 @@ function handleWebAuthUpdate(
     dataToStore.user_info = user;
   }
 
-  chrome.storage.sync
+  chrome.storage.local
     .set(dataToStore)
     .then(() => {
       logger.info('✅ Extension auth state updated');
@@ -235,6 +230,8 @@ function handleWebAuthUpdate(
       logger.error('Failed to update auth data:', error);
       sendResponse({ success: false, error: error.message });
     });
+
+  console.log('pohocha');
 
   return true; // Indicates async response
 }
@@ -276,22 +273,12 @@ function handleWebAuthLogout(
   return true; // Indicates async response
 }
 
-async function debugAuthState() {
-  const result = await chrome.storage.sync.get(null); // Get all storage
-  logger.info('All storage data:', result);
-
-  const popupState = await chrome.action.getPopup({});
-  logger.info('Current popup state:', popupState);
-}
-
-debugAuthState();
-
 updatePopupState().catch((error) => {
   logger.error('Error updating popup state:', error);
 });
 
 chrome.action.onClicked.addListener(async () => {
-  const result = (await chrome.storage.sync.get([
+  const result = (await chrome.storage.local.get([
     'auth_token',
     'token_expiry',
   ])) as Pick<AuthStorage, 'auth_token' | 'token_expiry'>;
@@ -312,7 +299,7 @@ async function postToBackend<T = unknown>(
     logger.info('Posting data to backend:', url);
 
     // Get auth token from storage
-    const result = await chrome.storage.sync.get(['auth_token']);
+    const result = await chrome.storage.local.get(['auth_token']);
     const { auth_token } = result as { auth_token?: string };
 
     if (!auth_token) {
@@ -350,7 +337,7 @@ async function postToBackend<T = unknown>(
           errRes?.error === 'NO_CLAIMS'
         ) {
           logger.info('Clearing invalid auth data');
-          await chrome.storage.sync.remove([
+          await chrome.storage.local.remove([
             'auth_token',
             'token_expiry',
             'user_info',
@@ -403,7 +390,7 @@ chrome.runtime.onMessage.addListener(
       // Get auth token from storage to validate session
       const checkAuth = async () => {
         try {
-          const result = await chrome.storage.sync.get([
+          const result = await chrome.storage.local.get([
             'auth_token',
             'token_expiry',
             'user_info',
@@ -545,7 +532,7 @@ chrome.runtime.onMessage.addListener(
         token_expiry: message.expiry,
         user_info: message.user,
       };
-      chrome.storage.sync
+      chrome.storage.local
         .set(dataToStore)
         .then(() => {
           updatePopupState();
@@ -558,7 +545,7 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message.type === 'AUTH_LOGOUT') {
-      chrome.storage.sync
+      chrome.storage.local
         .remove(['auth_token', 'token_expiry', 'user_info'])
         .then(() => {
           logger.info('User logged out, updating popup state');
@@ -579,19 +566,6 @@ chrome.runtime.onMessage.addListener(
     return true;
   },
 );
-
-async function initatializeClipperState() {
-  const result = await chrome.storage.sync.get('clipper_enabled');
-
-  if (result.clipper_enabled === undefined) {
-    await chrome.storage.sync.set({ clipper_enabled: true });
-    logger.info('Clipper state initialized to enabled');
-  }
-}
-
-initatializeClipperState().catch((error) => {
-  logger.error('Error initializing clipper state:', error);
-});
 
 setInterval(
   () => {

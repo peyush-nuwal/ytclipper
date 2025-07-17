@@ -69,7 +69,7 @@ const Popup: React.FC = () => {
 
   const checkAuthStatus = useCallback(async () => {
     try {
-      const result = (await chrome.storage.sync.get([
+      const result = (await chrome.storage.local.get([
         'auth_token',
         'user_info',
         'token_expiry',
@@ -83,7 +83,7 @@ const Popup: React.FC = () => {
       ) {
         setUserInfo(result.user_info);
       } else if (result.auth_token && !isTokenValid(result.token_expiry)) {
-        await chrome.storage.sync.remove([
+        await chrome.storage.local.remove([
           'auth_token',
           'token_expiry',
           'user_info',
@@ -123,7 +123,7 @@ const Popup: React.FC = () => {
     setClipperEnabled(newState);
 
     try {
-      await chrome.storage.sync.set({
+      await chrome.storage.local.set({
         clipper_enabled: newState,
       });
       const [currentTab] = await chrome.tabs.query({
@@ -316,7 +316,7 @@ const Popup: React.FC = () => {
             </button>
             <button
               onClick={async () => {
-                const storage = await chrome.storage.sync.get(null);
+                const storage = await chrome.storage.local.get(null);
                 console.log('All storage data:', storage);
                 console.log('Storage keys:', Object.keys(storage));
               }}
