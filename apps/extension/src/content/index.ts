@@ -223,6 +223,20 @@ class YouTubeHandler {
         this.togglePanel(false);
       }
     });
+
+    // Click outside to close
+    document.addEventListener('click', (e) => {
+      if (this.notePanel?.classList.contains('open')) {
+        const target = e.target as HTMLElement;
+        // Check if click is outside the panel
+        if (
+          !this.notePanel.contains(target) &&
+          !this.clipButton?.contains(target)
+        ) {
+          this.togglePanel(false);
+        }
+      }
+    });
   }
 
   private addTag(tagText: string) {
