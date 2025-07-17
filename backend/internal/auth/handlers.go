@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rs/zerolog/log"
 	"github.com/shubhamku044/ytclipper/internal/database"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
 	"github.com/shubhamku044/ytclipper/internal/models"
@@ -116,6 +117,32 @@ func (h *AuthHandlers) GetAccessToken() gin.HandlerFunc {
 	}
 }
 
+// RefreshTokenHandler handles refreshing access tokens using refresh tokens
+func (h *AuthHandlers) RefreshTokenHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get refresh token from cookie
+		refreshToken, err := c.Cookie("refresh_token")
+		if err != nil {
+			middleware.RespondWithError(c, http.StatusUnauthorized, "NO_REFRESH_TOKEN", "No refresh token found", nil)
+			return
+		}
+
+		// Generate new token pair
+		tokenPair, err := h.jwtService.RefreshAccessToken(refreshToken)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to refresh token")
+			middleware.RespondWithError(c, http.StatusUnauthorized, "REFRESH_ERROR", "Failed to refresh token", nil)
+			return
+		}
+
+		// Set new cookies
+		h.jwtService.SetTokenCookies(c, tokenPair.AccessToken, tokenPair.RefreshToken)
+
+		// Return new tokens
+		middleware.RespondWithOK(c, tokenPair)
+	}
+}
+
 func (h *AuthHandlers) SetupAuthRoutes(r *gin.Engine) {
 	auth := r.Group("/auth")
 	{
@@ -131,7 +158,7 @@ func (h *AuthHandlers) SetupAuthRoutes(r *gin.Engine) {
 		auth.POST("/add-password", h.authMiddleware.RequireAuth(), h.AddPasswordHandler)
 
 		auth.POST("/logout", h.googleService.LogoutHandler())
-		auth.POST("/refresh", h.googleService.RefreshTokenHandler())
+		auth.POST("/refresh", h.RefreshTokenHandler())
 
 		auth.GET("/me", h.authMiddleware.RequireAuth(), h.GetCurrentUserHandler())
 		auth.GET("/token", h.authMiddleware.RequireAuth(), h.GetAccessToken())

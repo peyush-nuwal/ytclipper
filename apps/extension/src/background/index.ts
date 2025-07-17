@@ -52,34 +52,29 @@ function isTokenValid(tokenExpiry?: number): boolean {
 }
 
 async function updatePopupState(): Promise<void> {
-  const result = (await chrome.storage.sync.get([
+  const result = (await chrome.storage.local.get([
     'auth_token',
     'user_info',
     'token_expiry',
   ])) as AuthStorage;
 
-  logger.info('Updating popup state');
-  console.log('Auth Storage:', {
-    hasToken: !!result.auth_token,
-    hasUser: !!result.user_info,
-    tokenExpiry: result.token_expiry,
-    isTokenValid: isTokenValid(result.token_expiry),
-  });
+  // logger.info('Updating popup state');
+  // console.log('Auth Storage:', {
+  //   hasToken: !!result.auth_token,
+  //   hasUser: !!result.user_info,
+  //   tokenExpiry: result.token_expiry,
+  //   isTokenValid: isTokenValid(result.token_expiry),
+  // });
 
   if (result.auth_token && isTokenValid(result.token_expiry)) {
-    logger.info('Popup enabled - user authenticated');
-  } else {
-    logger.info('Popup disabled - user not authenticated');
-
-    // If we have expired or invalid auth data, clear it
-    if (result.auth_token && !isTokenValid(result.token_expiry)) {
-      logger.info('Clearing expired auth data');
-      await chrome.storage.sync.remove([
-        'auth_token',
-        'token_expiry',
-        'user_info',
-      ]);
-    }
+    // logger.info('Popup enabled - user authenticated');
+  } else if (result.auth_token && !isTokenValid(result.token_expiry)) {
+    logger.info('Clearing expired auth data');
+    await chrome.storage.local.remove([
+      'auth_token',
+      'token_expiry',
+      'user_info',
+    ]);
   }
 }
 
@@ -224,7 +219,7 @@ function handleWebAuthUpdate(
     dataToStore.user_info = user;
   }
 
-  chrome.storage.sync
+  chrome.storage.local
     .set(dataToStore)
     .then(() => {
       logger.info('✅ Extension auth state updated');
@@ -235,6 +230,8 @@ function handleWebAuthUpdate(
       logger.error('Failed to update auth data:', error);
       sendResponse({ success: false, error: error.message });
     });
+
+  console.log('pohocha');
 
   return true; // Indicates async response
 }
@@ -276,22 +273,12 @@ function handleWebAuthLogout(
   return true; // Indicates async response
 }
 
-async function debugAuthState() {
-  const result = await chrome.storage.sync.get(null); // Get all storage
-  logger.info('All storage data:', result);
-
-  const popupState = await chrome.action.getPopup({});
-  logger.info('Current popup state:', popupState);
-}
-
-debugAuthState();
-
 updatePopupState().catch((error) => {
   logger.error('Error updating popup state:', error);
 });
 
 chrome.action.onClicked.addListener(async () => {
-  const result = (await chrome.storage.sync.get([
+  const result = (await chrome.storage.local.get([
     'auth_token',
     'token_expiry',
   ])) as Pick<AuthStorage, 'auth_token' | 'token_expiry'>;
@@ -307,14 +294,29 @@ chrome.action.onClicked.addListener(async () => {
 async function postToBackend<T = unknown>(
   url: string,
   data: ApiRequestData,
-): Promise<{ success: boolean; data?: T; error?: string }> {
+): Promise<{ success: boolean; data?: T; error?: string; errorCode?: string }> {
   try {
-    console.log('Post to backend');
+    logger.info('Posting data to backend:', url);
+
+    // Get auth token from storage
+    const result = await chrome.storage.local.get(['auth_token']);
+    const { auth_token } = result as { auth_token?: string };
+
+    if (!auth_token) {
+      logger.error('No auth token available for API request');
+      return {
+        success: false,
+        error: 'Authentication required',
+        errorCode: 'missing_token',
+      };
+    }
+
     const res = await fetch(url, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${auth_token}`,
       },
       body: JSON.stringify(data),
     });
@@ -323,18 +325,51 @@ async function postToBackend<T = unknown>(
       const errRes = (await res
         .json()
         .catch(() => null)) as ApiErrorResponse | null;
+
+      // Handle authentication errors
+      if (res.status === 401 || res.status === 403) {
+        logger.warn('Authentication failed during API request:', errRes);
+
+        // If token is invalid, clear it from storage
+        if (
+          errRes?.error === 'INVALID_TOKEN' ||
+          errRes?.error === 'TOKEN_EXPIRED' ||
+          errRes?.error === 'NO_CLAIMS'
+        ) {
+          logger.info('Clearing invalid auth data');
+          await chrome.storage.local.remove([
+            'auth_token',
+            'token_expiry',
+            'user_info',
+          ]);
+        }
+
+        return {
+          success: false,
+          error: 'Authentication failed. Please log in again.',
+          errorCode: 'auth_failed',
+        };
+      }
+
       return {
         success: false,
         error: errRes?.error || errRes?.message || `HTTP ${res.status}`,
+        errorCode: errRes?.error
+          ? String(errRes.error).toUpperCase()
+          : `HTTP_${res.status}`,
       };
     }
 
     const json = await res.json();
     return { success: true, data: json };
   } catch (error: ApiErrorResponse | unknown) {
+    logger.error('API request failed:', error);
     return {
       success: false,
-      error: (error as ApiErrorResponse)?.message || 'Unknown error',
+      error:
+        (error as ApiErrorResponse)?.message ||
+        'Network or server error occurred',
+      errorCode: 'network_error',
     };
   }
 }
@@ -355,7 +390,7 @@ chrome.runtime.onMessage.addListener(
       // Get auth token from storage to validate session
       const checkAuth = async () => {
         try {
-          const result = await chrome.storage.sync.get([
+          const result = await chrome.storage.local.get([
             'auth_token',
             'token_expiry',
             'user_info',
@@ -365,62 +400,109 @@ chrome.runtime.onMessage.addListener(
             'auth_token' | 'token_expiry' | 'user_info'
           >;
           console.log('Auth check result:', {
-            auth_token,
+            auth_token: auth_token ? '[REDACTED]' : undefined,
             token_expiry,
             user_info,
           });
 
-          if (!auth_token || !isTokenValid(token_expiry)) {
-            sendResponse({ authenticated: false });
+          // Handle missing access token or expired token
+          if (!auth_token) {
+            logger.warn('Access token not found in storage');
+            sendResponse({
+              authenticated: false,
+              error: 'missing_token',
+              message: 'Access token not found',
+            });
+            return;
+          }
+
+          // Check token validity
+          if (!isTokenValid(token_expiry)) {
+            logger.warn('Access token expired');
+            sendResponse({
+              authenticated: false,
+              error: 'expired_token',
+              message: 'Access token expired',
+            });
             return;
           }
 
           // Make the request with auth_token in Authorization header
-          const response = await fetch(
-            'http://localhost:8080/api/v1/auth/session',
-            {
+          try {
+            const response = await fetch(`${API_URL}/auth/session`, {
               method: 'GET',
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${auth_token}`,
               },
-            },
-          );
+            });
 
-          if (response.status === 200) {
-            const data = await response.json();
+            if (response.status === 200) {
+              const data = await response.json();
 
-            if (data.success) {
-              sendResponse({ authenticated: true, user: user_info });
-            } else {
-              sendResponse({ authenticated: false });
-            }
-          } else {
-            // Clear stored auth data for invalid tokens
-            try {
-              const errorData = await response.json();
-
-              // If token claims not found or token is invalid, clear stored auth data
-              if (
-                errorData?.error?.code === 'NO_CLAIMS' ||
-                errorData?.error?.code === 'INVALID_TOKEN' ||
-                response.status === 401
-              ) {
-                await chrome.storage.sync.remove([
-                  'auth_token',
-                  'token_expiry',
-                  'user_info',
-                ]);
+              if (data.success) {
+                logger.info('Authentication successful');
+                sendResponse({ authenticated: true, user: user_info });
+              } else {
+                logger.warn('Server returned success:false');
+                sendResponse({
+                  authenticated: false,
+                  error: 'server_rejected',
+                  message: data.message || 'Authentication failed',
+                });
               }
-            } catch {
-              // Silently handle parse errors
-            }
+            } else {
+              // Clear stored auth data for invalid tokens
+              try {
+                const errorData = await response.json();
+                logger.warn('Authentication failed:', errorData);
 
-            sendResponse({ authenticated: false });
+                // If token claims not found or token is invalid, clear stored auth data
+                if (
+                  errorData?.error?.code === 'NO_CLAIMS' ||
+                  errorData?.error?.code === 'INVALID_TOKEN' ||
+                  response.status === 401
+                ) {
+                  logger.info('Clearing invalid auth data');
+                  await chrome.storage.sync.remove([
+                    'auth_token',
+                    'token_expiry',
+                    'user_info',
+                  ]);
+                }
+
+                sendResponse({
+                  authenticated: false,
+                  error: errorData?.error?.code || 'server_error',
+                  message:
+                    errorData?.message || `HTTP error ${response.status}`,
+                });
+              } catch (parseError) {
+                // Handle parse errors
+                logger.error('Error parsing error response:', parseError);
+                sendResponse({
+                  authenticated: false,
+                  error: 'parse_error',
+                  message: `HTTP error ${response.status}`,
+                });
+              }
+            }
+          } catch (networkError) {
+            // Handle network errors (offline, connection issues)
+            logger.error('Network error during auth check:', networkError);
+            sendResponse({
+              authenticated: false,
+              error: 'network_error',
+              message: 'Could not connect to authentication server',
+            });
           }
         } catch (error) {
           console.error('Auth check failed:', error);
-          sendResponse({ authenticated: false });
+          sendResponse({
+            authenticated: false,
+            error: 'general_error',
+            message: 'Authentication check failed',
+          });
         }
       };
 
@@ -450,7 +532,7 @@ chrome.runtime.onMessage.addListener(
         token_expiry: message.expiry,
         user_info: message.user,
       };
-      chrome.storage.sync
+      chrome.storage.local
         .set(dataToStore)
         .then(() => {
           updatePopupState();
@@ -463,7 +545,7 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message.type === 'AUTH_LOGOUT') {
-      chrome.storage.sync
+      chrome.storage.local
         .remove(['auth_token', 'token_expiry', 'user_info'])
         .then(() => {
           logger.info('User logged out, updating popup state');
@@ -484,19 +566,6 @@ chrome.runtime.onMessage.addListener(
     return true;
   },
 );
-
-async function initatializeClipperState() {
-  const result = await chrome.storage.sync.get('clipper_enabled');
-
-  if (result.clipper_enabled === undefined) {
-    await chrome.storage.sync.set({ clipper_enabled: true });
-    logger.info('Clipper state initialized to enabled');
-  }
-}
-
-initatializeClipperState().catch((error) => {
-  logger.error('Error initializing clipper state:', error);
-});
 
 setInterval(
   () => {

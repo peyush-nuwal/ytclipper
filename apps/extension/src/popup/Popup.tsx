@@ -69,7 +69,7 @@ const Popup: React.FC = () => {
 
   const checkAuthStatus = useCallback(async () => {
     try {
-      const result = (await chrome.storage.sync.get([
+      const result = (await chrome.storage.local.get([
         'auth_token',
         'user_info',
         'token_expiry',
@@ -83,7 +83,7 @@ const Popup: React.FC = () => {
       ) {
         setUserInfo(result.user_info);
       } else if (result.auth_token && !isTokenValid(result.token_expiry)) {
-        await chrome.storage.sync.remove([
+        await chrome.storage.local.remove([
           'auth_token',
           'token_expiry',
           'user_info',
@@ -123,7 +123,7 @@ const Popup: React.FC = () => {
     setClipperEnabled(newState);
 
     try {
-      await chrome.storage.sync.set({
+      await chrome.storage.local.set({
         clipper_enabled: newState,
       });
       const [currentTab] = await chrome.tabs.query({
@@ -182,7 +182,7 @@ const Popup: React.FC = () => {
           <svg viewBox='0 0 24 24' fill='#FF6B35'>
             <path d='M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z' />
           </svg>
-          <h2>YT Clipper</h2>
+          <h2>YT Clipper Priyo</h2>
         </div>
         <div className='version'>v{EXTENSION_VERSION}</div>
       </div>
@@ -316,7 +316,7 @@ const Popup: React.FC = () => {
             </button>
             <button
               onClick={async () => {
-                const storage = await chrome.storage.sync.get(null);
+                const storage = await chrome.storage.local.get(null);
                 console.log('All storage data:', storage);
                 console.log('Storage keys:', Object.keys(storage));
               }}

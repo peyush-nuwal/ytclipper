@@ -6,6 +6,7 @@ import Loading from './components/loading';
 import { NotificationSystem } from './components/NotificationSystem';
 import { ProtectedRoute } from './components/protected-route';
 import { useAuth } from './hooks/useAuth';
+import { setupTokenRefresh } from './lib/token-refresh';
 import {
   DashboardPage,
   HomePage,
@@ -20,7 +21,6 @@ import { syncAuthState } from './services/extension-sync';
 const App = () => {
   const { isInitialized, isAuthenticated, user, token, tokenExpiry } =
     useAuth();
-
   useEffect(() => {
     if (isInitialized) {
       syncAuthState(isAuthenticated, user)
@@ -36,6 +36,19 @@ const App = () => {
         });
     }
   }, [isInitialized, isAuthenticated, user, token, tokenExpiry]);
+
+  // Set up automatic token refresh
+  useEffect(() => {
+    console.log(token);
+
+    if (isInitialized && isAuthenticated && !token) {
+      console.log('No token found, setting up immediate token refresh');
+      // console.log('Setting up token refresh mechanism');
+      const cleanup = setupTokenRefresh();
+      return cleanup;
+    }
+    return undefined;
+  }, [isInitialized, isAuthenticated, token]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
