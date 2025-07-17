@@ -93,6 +93,20 @@ export const registerWithEmailPassword = createAsyncThunk(
   },
 );
 
+export const refreshToken = createAsyncThunk(
+  'auth/refreshToken',
+  async (_, { rejectWithValue }) => {
+    try {
+      const user = await authApi.refreshToken();
+      return user;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Token refresh failed',
+      );
+    }
+  },
+);
+
 export const logout = createAsyncThunk(
   'auth/logout',
   async (_, { rejectWithValue }) => {
@@ -408,6 +422,32 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(addPassword.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+
+      // Refresh token
+      .addCase(refreshToken.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(refreshToken.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.user = action.payload;
+        state.token = action.payload.token;
+        state.tokenExpiry = action.payload.token_expiry;
+        state.isAuthenticated = true;
+        state.error = null;
+
+        if (action.payload) {
+          notifyExtension.authUpdate(
+            action.payload,
+            action.payload.token || undefined,
+            action.payload.token_expiry || undefined,
+          );
+        }
+      })
+      .addCase(refreshToken.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       })

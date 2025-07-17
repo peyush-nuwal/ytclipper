@@ -8,6 +8,7 @@ import {
   loginWithEmailPassword,
   loginWithGoogle,
   logout,
+  refreshToken,
   registerWithEmailPassword,
   resetPassword,
   verifyEmail,
@@ -233,6 +234,29 @@ export function useAuth() {
     },
   });
 
+  const refreshTokenMutation = useMutation({
+    mutationFn: () => dispatch(refreshToken()).unwrap(),
+    onSuccess: (_user: User) => {
+      invalidateAuthQueries();
+      dispatch(
+        addNotification({
+          type: 'success',
+          title: 'Token Refreshed',
+          message: 'Your session has been refreshed successfully',
+        }),
+      );
+    },
+    onError: (error: Error) => {
+      dispatch(
+        addNotification({
+          type: 'error',
+          title: 'Token Refresh Failed',
+          message: error.message,
+        }),
+      );
+    },
+  });
+
   return {
     user,
     isAuthenticated,
@@ -251,12 +275,14 @@ export function useAuth() {
     forgotPassword: forgotPasswordMutation.mutate,
     resetPassword: resetPasswordMutation.mutate,
     verifyEmail: verifyEmailMutation.mutate,
+    refreshToken: refreshTokenMutation.mutate,
     clearError: () => dispatch(clearError()),
 
     isLoggingIn:
       googleLoginMutation.isPending || emailPasswordLoginMutation.isPending,
     isRegistering: registerMutation.isPending,
     isAddingPassword: addPasswordMutation.isPending,
+    isRefreshing: refreshTokenMutation.isPending,
     isLoggingOut: logoutMutation.isPending,
     isForgettingPassword: forgotPasswordMutation.isPending,
     isResettingPassword: resetPasswordMutation.isPending,

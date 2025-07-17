@@ -307,14 +307,29 @@ chrome.action.onClicked.addListener(async () => {
 async function postToBackend<T = unknown>(
   url: string,
   data: ApiRequestData,
-): Promise<{ success: boolean; data?: T; error?: string }> {
+): Promise<{ success: boolean; data?: T; error?: string; errorCode?: string }> {
   try {
-    console.log('Post to backend');
+    logger.info('Posting data to backend:', url);
+
+    // Get auth token from storage
+    const result = await chrome.storage.sync.get(['auth_token']);
+    const { auth_token } = result as { auth_token?: string };
+
+    if (!auth_token) {
+      logger.error('No auth token available for API request');
+      return {
+        success: false,
+        error: 'Authentication required',
+        errorCode: 'missing_token',
+      };
+    }
+
     const res = await fetch(url, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${auth_token}`,
       },
       body: JSON.stringify(data),
     });
@@ -323,18 +338,51 @@ async function postToBackend<T = unknown>(
       const errRes = (await res
         .json()
         .catch(() => null)) as ApiErrorResponse | null;
+
+      // Handle authentication errors
+      if (res.status === 401 || res.status === 403) {
+        logger.warn('Authentication failed during API request:', errRes);
+
+        // If token is invalid, clear it from storage
+        if (
+          errRes?.error === 'INVALID_TOKEN' ||
+          errRes?.error === 'TOKEN_EXPIRED' ||
+          errRes?.error === 'NO_CLAIMS'
+        ) {
+          logger.info('Clearing invalid auth data');
+          await chrome.storage.sync.remove([
+            'auth_token',
+            'token_expiry',
+            'user_info',
+          ]);
+        }
+
+        return {
+          success: false,
+          error: 'Authentication failed. Please log in again.',
+          errorCode: 'auth_failed',
+        };
+      }
+
       return {
         success: false,
         error: errRes?.error || errRes?.message || `HTTP ${res.status}`,
+        errorCode: errRes?.error
+          ? String(errRes.error).toUpperCase()
+          : `HTTP_${res.status}`,
       };
     }
 
     const json = await res.json();
     return { success: true, data: json };
   } catch (error: ApiErrorResponse | unknown) {
+    logger.error('API request failed:', error);
     return {
       success: false,
-      error: (error as ApiErrorResponse)?.message || 'Unknown error',
+      error:
+        (error as ApiErrorResponse)?.message ||
+        'Network or server error occurred',
+      errorCode: 'network_error',
     };
   }
 }
@@ -365,62 +413,109 @@ chrome.runtime.onMessage.addListener(
             'auth_token' | 'token_expiry' | 'user_info'
           >;
           console.log('Auth check result:', {
-            auth_token,
+            auth_token: auth_token ? '[REDACTED]' : undefined,
             token_expiry,
             user_info,
           });
 
-          if (!auth_token || !isTokenValid(token_expiry)) {
-            sendResponse({ authenticated: false });
+          // Handle missing access token or expired token
+          if (!auth_token) {
+            logger.warn('Access token not found in storage');
+            sendResponse({
+              authenticated: false,
+              error: 'missing_token',
+              message: 'Access token not found',
+            });
+            return;
+          }
+
+          // Check token validity
+          if (!isTokenValid(token_expiry)) {
+            logger.warn('Access token expired');
+            sendResponse({
+              authenticated: false,
+              error: 'expired_token',
+              message: 'Access token expired',
+            });
             return;
           }
 
           // Make the request with auth_token in Authorization header
-          const response = await fetch(
-            'http://localhost:8080/api/v1/auth/session',
-            {
+          try {
+            const response = await fetch(`${API_URL}/auth/session`, {
               method: 'GET',
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${auth_token}`,
               },
-            },
-          );
+            });
 
-          if (response.status === 200) {
-            const data = await response.json();
+            if (response.status === 200) {
+              const data = await response.json();
 
-            if (data.success) {
-              sendResponse({ authenticated: true, user: user_info });
-            } else {
-              sendResponse({ authenticated: false });
-            }
-          } else {
-            // Clear stored auth data for invalid tokens
-            try {
-              const errorData = await response.json();
-
-              // If token claims not found or token is invalid, clear stored auth data
-              if (
-                errorData?.error?.code === 'NO_CLAIMS' ||
-                errorData?.error?.code === 'INVALID_TOKEN' ||
-                response.status === 401
-              ) {
-                await chrome.storage.sync.remove([
-                  'auth_token',
-                  'token_expiry',
-                  'user_info',
-                ]);
+              if (data.success) {
+                logger.info('Authentication successful');
+                sendResponse({ authenticated: true, user: user_info });
+              } else {
+                logger.warn('Server returned success:false');
+                sendResponse({
+                  authenticated: false,
+                  error: 'server_rejected',
+                  message: data.message || 'Authentication failed',
+                });
               }
-            } catch {
-              // Silently handle parse errors
-            }
+            } else {
+              // Clear stored auth data for invalid tokens
+              try {
+                const errorData = await response.json();
+                logger.warn('Authentication failed:', errorData);
 
-            sendResponse({ authenticated: false });
+                // If token claims not found or token is invalid, clear stored auth data
+                if (
+                  errorData?.error?.code === 'NO_CLAIMS' ||
+                  errorData?.error?.code === 'INVALID_TOKEN' ||
+                  response.status === 401
+                ) {
+                  logger.info('Clearing invalid auth data');
+                  await chrome.storage.sync.remove([
+                    'auth_token',
+                    'token_expiry',
+                    'user_info',
+                  ]);
+                }
+
+                sendResponse({
+                  authenticated: false,
+                  error: errorData?.error?.code || 'server_error',
+                  message:
+                    errorData?.message || `HTTP error ${response.status}`,
+                });
+              } catch (parseError) {
+                // Handle parse errors
+                logger.error('Error parsing error response:', parseError);
+                sendResponse({
+                  authenticated: false,
+                  error: 'parse_error',
+                  message: `HTTP error ${response.status}`,
+                });
+              }
+            }
+          } catch (networkError) {
+            // Handle network errors (offline, connection issues)
+            logger.error('Network error during auth check:', networkError);
+            sendResponse({
+              authenticated: false,
+              error: 'network_error',
+              message: 'Could not connect to authentication server',
+            });
           }
         } catch (error) {
           console.error('Auth check failed:', error);
-          sendResponse({ authenticated: false });
+          sendResponse({
+            authenticated: false,
+            error: 'general_error',
+            message: 'Authentication check failed',
+          });
         }
       };
 

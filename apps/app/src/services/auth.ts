@@ -222,6 +222,45 @@ class AuthApiService {
       return false;
     }
   }
+
+  async refreshToken(): Promise<User> {
+    try {
+      console.log('🔍 Refreshing access token...');
+      const response = await this.request<{
+        user?: Omit<User, 'token' | 'token_expiry'>;
+        access_token: string;
+        refresh_token: string;
+        expires_in: number;
+      }>('/auth/refresh', {
+        method: 'POST',
+      });
+
+      if (!response.access_token) {
+        throw new Error('No access token received');
+      }
+
+      // If the response doesn't include user data, fetch it
+      let userData = response.user;
+      if (!userData) {
+        const userResponse = await this.getCurrentUser();
+        if (!userResponse) {
+          throw new Error('Failed to get user data after token refresh');
+        }
+        userData = userResponse;
+      }
+
+      const user: User = {
+        ...userData,
+        token: response.access_token,
+        token_expiry: Date.now() + response.expires_in * 1000,
+      };
+
+      return user;
+    } catch (error) {
+      console.error('❌ Token refresh failed:', error);
+      throw error;
+    }
+  }
 }
 
 export const authApi = new AuthApiService();
