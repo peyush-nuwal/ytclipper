@@ -1,7 +1,6 @@
 import { Route, Routes } from 'react-router';
 
 import { AuthRouteGuard, ProtectedRouteGuard } from '@/components/guards';
-import { NotificationSystem } from './components/NotificationSystem';
 import { DashboardPage, HomePage, ProfilePage } from './pages';
 import { GoogleCallback } from './pages/google-callback';
 import { AuthRoutes } from './routes';
@@ -111,7 +110,6 @@ const App = () => {
           }
         /> */}
       </Routes>
-      <NotificationSystem />
     </div>
   );
 };
