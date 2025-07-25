@@ -5,11 +5,9 @@ import { PageLayout } from '../components/layout/page-layout';
 import { NotesList } from '../components/notes/notes-list';
 import { YouTubePlayer } from '../components/video/youtube-player';
 import { useVideo } from '../hooks/use-videos';
-import { useAuth } from '../hooks/useAuth';
 
 export const VideoDetailPage = () => {
   const { id } = useParams<{ id?: string }>();
-  const { isAuthenticated } = useAuth();
 
   const { video, loading, error } = useVideo(id);
 
@@ -17,23 +15,23 @@ export const VideoDetailPage = () => {
     return <div>Video id is missing</div>;
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className='min-h-screen bg-gray-50'>
-        <Navigation title='Video Details' showBackButton />
-        <PageLayout
-          title='Access Denied'
-          description='Please log in to view video details.'
-        >
-          <div className='text-center'>
-            <p className='text-gray-600'>
-              You need to be logged in to access this page.
-            </p>
-          </div>
-        </PageLayout>
-      </div>
-    );
-  }
+  // if (!isAuthenticated) {
+  //   return (
+  //     <div className='min-h-screen bg-gray-50'>
+  //       <Navigation title='Video Details' showBackButton />
+  //       <PageLayout
+  //         title='Access Denied'
+  //         description='Please log in to view video details.'
+  //       >
+  //         <div className='text-center'>
+  //           <p className='text-gray-600'>
+  //             You need to be logged in to access this page.
+  //           </p>
+  //         </div>
+  //       </PageLayout>
+  //     </div>
+  //   );
+  // }
 
   if (loading) {
     return (

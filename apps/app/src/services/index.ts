@@ -1,4 +1,4 @@
-export { authApi } from './auth';
+export { authApi } from './auth-old';
 export type {
   AddPasswordRequest,
   ForgotPasswordRequest,
@@ -7,7 +7,7 @@ export type {
   RegisterRequest,
   ResetPasswordRequest,
   VerifyEmailRequest,
-} from './auth';
+} from './auth-old';
 export { extensionMessaging } from './extension-messaging';
 export type {
   ExtensionAuthMessage,

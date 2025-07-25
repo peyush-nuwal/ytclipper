@@ -1,4 +1,3 @@
-import { useAuth } from '@/hooks/useAuth';
 import React, { useState } from 'react';
 
 interface RegisterFormProps {
@@ -13,12 +12,21 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleForm }) => {
   const [localError, setLocalError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const {
-    register,
-    loginWithGoogle,
-    isRegistering,
-    error: authError,
-  } = useAuth();
+  // const {
+  //   register,
+  //   loginWithGoogle,
+  //   isRegistering,
+  //   error: authError,
+  // } = useAuth();
+
+  const register = async (data: {
+    name: string;
+    email: string;
+    password: string;
+  }) => {};
+  const loginWithGoogle = () => {};
+  const isRegistering = false; // Replace with actual state from useAuth
+  const authError = null; // Replace with actual error from useAuth
 
   const error = localError || authError;
   const loading = isRegistering;

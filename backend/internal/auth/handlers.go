@@ -89,9 +89,8 @@ func (h *AuthHandlers) GetCurrentUserHandler() gin.HandlerFunc {
 		}
 
 		response := gin.H{
-			"message":              "User fetched successfully",
 			"user":                 user,
-			"authMethods":          authMethods,
+			"auth_methods":         authMethods,
 			"access_token":         accessToken,
 			"refresh_token":        refreshToken,
 			"access_token_expiry":  accessTokenExpiry,
@@ -144,7 +143,9 @@ func (h *AuthHandlers) RefreshTokenHandler() gin.HandlerFunc {
 }
 
 func (h *AuthHandlers) SetupAuthRoutes(r *gin.Engine) {
-	auth := r.Group("/auth")
+	v1 := r.Group("/api/v1")
+
+	auth := v1.Group("/auth")
 	{
 		auth.GET("/google/login", h.googleService.LoginHandler())
 		auth.GET("/google/callback", h.googleService.CallbackHandler())
@@ -161,7 +162,6 @@ func (h *AuthHandlers) SetupAuthRoutes(r *gin.Engine) {
 		auth.POST("/logout", h.googleService.LogoutHandler())
 		auth.POST("/refresh", h.RefreshTokenHandler())
 
-		auth.GET("/me", h.authMiddleware.RequireAuth(), h.GetCurrentUserHandler())
 		auth.GET("/token", h.authMiddleware.RequireAuth(), h.GetAccessToken())
 	}
 }
@@ -203,7 +203,7 @@ type AddPasswordRequest struct {
 func (h *AuthHandlers) RegisterHandler(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request payload", err.Error())
 		return
 	}
 
@@ -215,24 +215,24 @@ func (h *AuthHandlers) RegisterHandler(c *gin.Context) {
 		Where("email = ?", req.Email).
 		Scan(ctx)
 	if err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "User already exists"})
+		middleware.RespondWithError(c, http.StatusConflict, "USER_EXISTS", "User with this email already exists", nil)
 		return
 	}
 
 	if err = ValidatePassword(req.Password); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_PASSWORD", "Invalid password", err.Error())
 		return
 	}
 
 	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "HASHING_ERROR", "Failed to hash password", err.Error())
 		return
 	}
 
 	verificationToken, err := h.emailService.GenerateToken()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate verification token"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "TOKEN_GENERATION_ERROR", "Failed to generate verification token", err.Error())
 		return
 	}
 
@@ -246,19 +246,19 @@ func (h *AuthHandlers) RegisterHandler(c *gin.Context) {
 	}
 
 	if err := h.db.Create(ctx, &user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "USER_CREATION_ERROR", "Failed to create user", err.Error())
 		return
 	}
 
 	if err := h.emailService.SendVerificationEmail(user.Email, verificationToken); err != nil {
-		c.JSON(http.StatusCreated, gin.H{
-			"message": "User created successfully, but verification email failed to send",
+		middleware.RespondWithOK(c, gin.H{
+			"message": "User created successfully. Please check your email to verify your account.",
 			"user":    user,
 		})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	middleware.RespondWithOK(c, gin.H{
 		"message": "User created successfully. Please check your email to verify your account.",
 		"user":    user,
 	})
@@ -267,7 +267,7 @@ func (h *AuthHandlers) RegisterHandler(c *gin.Context) {
 func (h *AuthHandlers) LoginHandler(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request payload", err.Error())
 		return
 	}
 
@@ -284,31 +284,31 @@ func (h *AuthHandlers) LoginHandler(c *gin.Context) {
 	}
 
 	if user.Password == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "This account uses OAuth login. Please use Google login or add a password first."})
+		middleware.RespondWithError(c, http.StatusBadRequest, "OAUTH_ONLY", "This account uses OAuth login. Please use Google login or add a password first.", nil)
 		return
 	}
 
 	if err = CheckPassword(req.Password, user.Password); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		middleware.RespondWithError(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid credentials", nil)
 		return
 	}
 
 	/* Skip this for now
 	if !user.EmailVerified {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Please verify your email before logging in"})
+		middleware.RespondWithError(c, http.StatusUnauthorized, "EMAIL_NOT_VERIFIED", "Please verify your email before logging in", nil)
 		return
 	}
 	*/
 
 	accessToken, accessTokenExpiry, err := h.jwtService.GenerateAccessToken(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "TOKEN_GENERATION_ERROR", "Failed to generate access token", nil)
 		return
 	}
 
 	refreshToken, refreshTokenExpiry, err := h.jwtService.GenerateRefreshToken(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate refresh token"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "TOKEN_GENERATION_ERROR", "Failed to generate refresh token", nil)
 		return
 	}
 
@@ -338,7 +338,7 @@ func (h *AuthHandlers) LoginHandler(c *gin.Context) {
 func (h *AuthHandlers) ForgotPasswordHandler(c *gin.Context) {
 	var req ForgotPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request payload", err.Error())
 		return
 	}
 
@@ -352,7 +352,7 @@ func (h *AuthHandlers) ForgotPasswordHandler(c *gin.Context) {
 		Scan(ctx)
 	if err != nil {
 		// Don't reveal if email exists or not
-		c.JSON(http.StatusOK, gin.H{
+		middleware.RespondWithOK(c, gin.H{
 			"message": "If the email exists, a password reset link has been sent.",
 		})
 		return
@@ -361,7 +361,7 @@ func (h *AuthHandlers) ForgotPasswordHandler(c *gin.Context) {
 	// Generate reset token
 	resetToken, err := h.emailService.GenerateToken()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate reset token"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "TOKEN_GENERATION_ERROR", "Failed to generate reset token", err.Error())
 		return
 	}
 
@@ -370,17 +370,17 @@ func (h *AuthHandlers) ForgotPasswordHandler(c *gin.Context) {
 	user.PasswordResetExpiry = &[]time.Time{h.emailService.GetTokenExpiry()}[0]
 
 	if err := h.db.Update(ctx, &user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save reset token"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to save reset token", err.Error())
 		return
 	}
 
 	// Send reset email
 	if err := h.emailService.SendPasswordResetEmail(user.Email, resetToken); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send reset email"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "EMAIL_SENDING_ERROR", "Failed to send password reset email", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	middleware.RespondWithOK(c, gin.H{
 		"message": "Password reset link sent to your email.",
 	})
 }
@@ -389,7 +389,7 @@ func (h *AuthHandlers) ForgotPasswordHandler(c *gin.Context) {
 func (h *AuthHandlers) ResetPasswordHandler(c *gin.Context) {
 	var req ResetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request payload", err.Error())
 		return
 	}
 
@@ -402,20 +402,20 @@ func (h *AuthHandlers) ResetPasswordHandler(c *gin.Context) {
 		Where("password_reset_token = ? AND password_reset_expiry > ?", req.Token, time.Now()).
 		Scan(ctx)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired reset token"})
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_TOKEN", "Invalid or expired reset token", nil)
 		return
 	}
 
 	// Validate new password
 	if err = ValidatePassword(req.Password); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_PASSWORD", "Invalid password", err.Error())
 		return
 	}
 
 	// Hash new password
 	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "HASHING_ERROR", "Failed to hash password", err.Error())
 		return
 	}
 
@@ -425,11 +425,11 @@ func (h *AuthHandlers) ResetPasswordHandler(c *gin.Context) {
 	user.PasswordResetExpiry = nil
 
 	if err := h.db.Update(ctx, &user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to update password", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	middleware.RespondWithOK(c, gin.H{
 		"message": "Password reset successful. You can now login with your new password.",
 	})
 }
@@ -438,7 +438,7 @@ func (h *AuthHandlers) ResetPasswordHandler(c *gin.Context) {
 func (h *AuthHandlers) VerifyEmailHandler(c *gin.Context) {
 	var req VerifyEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request payload", err.Error())
 		return
 	}
 
@@ -451,7 +451,7 @@ func (h *AuthHandlers) VerifyEmailHandler(c *gin.Context) {
 		Where("email_verification_token = ? AND email_verification_expiry > ?", req.Token, time.Now()).
 		Scan(ctx)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired verification token"})
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_TOKEN", "Invalid or expired verification token", nil)
 		return
 	}
 
@@ -461,11 +461,11 @@ func (h *AuthHandlers) VerifyEmailHandler(c *gin.Context) {
 	user.EmailVerificationExpiry = nil
 
 	if err := h.db.Update(ctx, &user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify email"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to update user verification status", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	middleware.RespondWithOK(c, gin.H{
 		"message": "Email verified successfully. You can now login.",
 	})
 }
@@ -478,14 +478,14 @@ func (h *AuthHandlers) AuthStatusHandler(c *gin.Context) {
 func (h *AuthHandlers) AddPasswordHandler(c *gin.Context) {
 	var req AddPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request payload", err.Error())
 		return
 	}
 
 	// Get current user from context
 	user, exists := GetUser(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		middleware.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated", nil)
 		return
 	}
 
@@ -498,25 +498,25 @@ func (h *AuthHandlers) AddPasswordHandler(c *gin.Context) {
 		Where("id = ?", user.ID).
 		Scan(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to fetch user", err.Error())
 		return
 	}
 
 	if currentUser.Password != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User already has a password"})
+		middleware.RespondWithError(c, http.StatusBadRequest, "PASSWORD_EXISTS", "User already has a password", nil)
 		return
 	}
 
 	// Validate password
 	if err = ValidatePassword(req.Password); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_PASSWORD", "Invalid password", err.Error())
 		return
 	}
 
 	// Hash password
 	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "HASHING_ERROR", "Failed to hash password", err.Error())
 		return
 	}
 
@@ -524,11 +524,11 @@ func (h *AuthHandlers) AddPasswordHandler(c *gin.Context) {
 	currentUser.Password = hashedPassword
 
 	if err := h.db.Update(ctx, &currentUser); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add password"})
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to update user with password", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	middleware.RespondWithOK(c, gin.H{
 		"message": "Password added successfully. You can now login with email and password.",
 	})
 }

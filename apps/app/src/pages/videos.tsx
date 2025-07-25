@@ -1,44 +1,40 @@
-import Loading from '@/components/loading';
-import { useAuth } from '@/hooks/useAuth';
-import { useUserVideos } from '@/hooks/useVideos';
 import { formatTimestamp } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@ytclipper/ui';
 import { Calendar, Clock, Play } from 'lucide-react';
 import { Link } from 'react-router';
 
 export const VideosPage = () => {
-  const { isAuthenticated } = useAuth();
-  const { data: videosData, isLoading, error } = useUserVideos();
+  // const { isAuthenticated } = useAuth();
 
-  if (!isAuthenticated) {
-    return (
-      <div className='min-h-screen bg-gray-50'>
-        <div className='p-8'>
-          <h1 className='text-2xl font-bold text-red-600'>Access Denied</h1>
-          <p className='text-gray-600 mt-2'>
-            Please log in to view your videos.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // if (!isAuthenticated) {
+  //   return (
+  //     <div className='min-h-screen bg-gray-50'>
+  //       <div className='p-8'>
+  //         <h1 className='text-2xl font-bold text-red-600'>Access Denied</h1>
+  //         <p className='text-gray-600 mt-2'>
+  //           Please log in to view your videos.
+  //         </p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
+  //
+  // if (isLoading) {
+  //   return <Loading />;
+  // }
+  //
+  // if (error) {
+  //   return (
+  //     <div className='p-8'>
+  //       <h1 className='text-2xl font-bold text-red-600'>
+  //         Error loading videos
+  //       </h1>
+  //       <p className='text-gray-600 mt-2'>{error.message}</p>
+  //     </div>
+  //   );
+  // }
 
-  if (isLoading) {
-    return <Loading />;
-  }
-
-  if (error) {
-    return (
-      <div className='p-8'>
-        <h1 className='text-2xl font-bold text-red-600'>
-          Error loading videos
-        </h1>
-        <p className='text-gray-600 mt-2'>{error.message}</p>
-      </div>
-    );
-  }
-
-  const videos = videosData?.videos || [];
+  const videos = [];
 
   return (
     <div className='p-8 max-w-6xl mx-auto'>

@@ -1,91 +1,92 @@
 import { Route, Routes } from 'react-router';
 
-import { useEffect } from 'react';
-import { AuthCallback } from './components/auth-callback';
-import Loading from './components/loading';
+import { AuthRouteGuard, ProtectedRouteGuard } from '@/components/guards';
 import { NotificationSystem } from './components/NotificationSystem';
-import { ProtectedRoute } from './components/protected-route';
-import { useAuth } from './hooks/useAuth';
-import { setupTokenRefresh } from './lib/token-refresh';
-import {
-  DashboardPage,
-  HomePage,
-  LoginPage,
-  ProfilePage,
-  TimestampsPage,
-  VideoDetailPage,
-  VideosPage,
-} from './pages';
-import { syncAuthState } from './services/extension-sync';
+import { DashboardPage, HomePage, ProfilePage } from './pages';
+import { GoogleCallback } from './pages/google-callback';
+import { AuthRoutes } from './routes';
 
 const App = () => {
-  const { isInitialized, isAuthenticated, user, token, tokenExpiry } =
-    useAuth();
-  useEffect(() => {
-    if (isInitialized) {
-      syncAuthState(isAuthenticated, user)
-        .then((result) => {
-          if (result.success) {
-            console.log('✅ App-level extension sync successful');
-          } else {
-            console.warn('❌ App-level extension sync failed:', result.error);
-          }
-        })
-        .catch((error) => {
-          console.warn('❌ App-level extension sync error:', error);
-        });
-    }
-  }, [isInitialized, isAuthenticated, user, token, tokenExpiry]);
-
-  useEffect(() => {
-    if (isInitialized && isAuthenticated && !token) {
-      const cleanup = setupTokenRefresh();
-      return cleanup;
-    }
-    return undefined;
-  }, [isInitialized, isAuthenticated, token]);
-
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.source !== window) {
-        return;
-      }
-      if (event.data.type === 'CHECK_AUTH_STATUS') {
-        syncAuthState(isAuthenticated, user).catch(console.warn);
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [user, isAuthenticated, tokenExpiry, token]);
-
-  if (!isInitialized) {
-    return <Loading />;
-  }
+  // useEffect(() => {
+  //   if (isInitialized) {
+  //     syncAuthState(isAuthenticated, user)
+  //       .then((result) => {
+  //         if (result.success) {
+  //           console.log('✅ App-level extension sync successful');
+  //         } else {
+  //           console.warn('❌ App-level extension sync failed:', result.error);
+  //         }
+  //       })
+  //       .catch((error) => {
+  //         console.warn('❌ App-level extension sync error:', error);
+  //       });
+  //   }
+  // }, [isInitialized, isAuthenticated, user, token, tokenExpiry]);
+  //
+  // useEffect(() => {
+  //   if (isInitialized && isAuthenticated && !token) {
+  //     const cleanup = setupTokenRefresh();
+  //     return cleanup;
+  //   }
+  //   return undefined;
+  // }, [isInitialized, isAuthenticated, token]);
+  //
+  // useEffect(() => {
+  //   const handleMessage = (event: MessageEvent) => {
+  //     if (event.source !== window) {
+  //       return;
+  //     }
+  //     if (event.data.type === 'CHECK_AUTH_STATUS') {
+  //       syncAuthState(isAuthenticated, user).catch(console.warn);
+  //     }
+  //   };
+  //
+  //   window.addEventListener('message', handleMessage);
+  //   return () => window.removeEventListener('message', handleMessage);
+  // }, [user, isAuthenticated, tokenExpiry, token]);
+  //
+  // if (!isInitialized) {
+  //   return <Loading />;
+  // }
 
   return (
     <div className='min-h-screen bg-gray-50'>
       <Routes>
-        <Route path='/' element={<HomePage />} />
-        <Route path='/auth' element={<LoginPage />} />
-        <Route path='/auth/callback' element={<AuthCallback />} />
+        <Route
+          path='/'
+          element={
+            <AuthRouteGuard>
+              <HomePage />
+            </AuthRouteGuard>
+          }
+        />
+        <Route
+          path='/*'
+          element={
+            <AuthRouteGuard>
+              <AuthRoutes />
+            </AuthRouteGuard>
+          }
+        />
+        <Route path='/auth/callback' element={<GoogleCallback />} />
         <Route
           path='/dashboard'
           element={
-            <ProtectedRoute>
+            <ProtectedRouteGuard>
               <DashboardPage />
-            </ProtectedRoute>
+            </ProtectedRouteGuard>
           }
         />
         <Route
           path='/profile'
           element={
-            <ProtectedRoute>
+            <ProtectedRouteGuard>
               <ProfilePage />
-            </ProtectedRoute>
+            </ProtectedRouteGuard>
           }
         />
-        <Route
+
+        {/*         <Route
           path='/videos'
           element={
             <ProtectedRoute>
@@ -108,7 +109,7 @@ const App = () => {
               <TimestampsPage />
             </ProtectedRoute>
           }
-        />
+        /> */}
       </Routes>
       <NotificationSystem />
     </div>

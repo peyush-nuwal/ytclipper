@@ -2,17 +2,22 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  token: null | string;
-  token_expiry: null | number;
-  picture?: string;
+  picture: string;
+  google_id?: string; // Optional field for Google ID
   email_verified: boolean;
   provider?: string; // Add provider field from the API response
-  primary_provider?: string; // Keep for backward compatibility
-  auth_methods?: string[];
-  has_password?: boolean;
-  has_google_account?: boolean;
+  primary_id?: string; // Keep for backward compatibility
   created_at: string;
   updated_at: string;
+}
+
+export interface AuthMeResponse {
+  user: User;
+  auth_methods: Array<'google' | 'password'>;
+  access_token?: string; // Optional field for access token
+  refresh_token?: string; // Optional field for refresh token
+  access_token_expiry?: number; // Optional field for access token expiry
+  refresh_token_expiry?: number; // Optional field for refresh token expiry
 }
 
 export interface Note {

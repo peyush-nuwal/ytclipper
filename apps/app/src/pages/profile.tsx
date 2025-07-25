@@ -1,13 +1,24 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { AddPasswordForm } from '../components/auth/AddPasswordForm';
-import { useAuth } from '../hooks/useAuth';
+import LogoutButton from '../components/logout-button';
+import { useGetCurrentUserQuery } from '../services/auth';
 
 export const ProfilePage = () => {
-  const { user, logout } = useAuth();
+  const { data, isLoading, isError } = useGetCurrentUserQuery();
   const [showAddPassword, setShowAddPassword] = useState(false);
 
-  if (!user) {
+  if (isLoading) {
+    return (
+      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
+        <div className='text-center'>
+          <h1 className='text-2xl font-bold text-gray-900 mb-4'>Loading...</h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data?.success || isError) {
     return (
       <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
         <div className='text-center'>
@@ -15,7 +26,7 @@ export const ProfilePage = () => {
             Not Authenticated
           </h1>
           <Link
-            to='/auth'
+            to='/auth/login'
             className='text-blue-600 hover:text-blue-800 underline'
           >
             Please login to view your profile
@@ -24,6 +35,8 @@ export const ProfilePage = () => {
       </div>
     );
   }
+
+  const user = data.data.user;
 
   const handleAddPasswordSuccess = () => {
     setShowAddPassword(false);
@@ -42,12 +55,7 @@ export const ProfilePage = () => {
             >
               Back to Dashboard
             </Link>
-            <button
-              onClick={() => logout()}
-              className='bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500'
-            >
-              Logout
-            </button>
+            <LogoutButton />
           </div>
         </div>
 
@@ -107,7 +115,7 @@ export const ProfilePage = () => {
                       Primary Provider
                     </span>
                     <p className='mt-1 text-sm text-gray-900 capitalize'>
-                      {user.primary_provider}
+                      {user.provider}
                     </p>
                   </div>
 
@@ -148,12 +156,14 @@ export const ProfilePage = () => {
                   </div>
                   <span
                     className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      user.has_google_account
+                      data.data.auth_methods.includes('google')
                         ? 'bg-green-100 text-green-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}
                   >
-                    {user.has_google_account ? 'Connected' : 'Not Connected'}
+                    {data.data.auth_methods.includes('google')
+                      ? 'Connected'
+                      : 'Not Connected'}
                   </span>
                 </div>
 
@@ -176,16 +186,18 @@ export const ProfilePage = () => {
                   </div>
                   <span
                     className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      user.has_password
+                      data.data.auth_methods.includes('password')
                         ? 'bg-green-100 text-green-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}
                   >
-                    {user.has_password ? 'Set' : 'Not Set'}
+                    {data.data.auth_methods.includes('password')
+                      ? 'Set'
+                      : 'Not Set'}
                   </span>
                 </div>
 
-                {!user.has_password && (
+                {!data.data.auth_methods.includes('password') && (
                   <div className='pt-4 border-t border-gray-200'>
                     <button
                       onClick={() => setShowAddPassword(true)}

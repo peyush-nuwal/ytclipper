@@ -13,7 +13,7 @@ import { AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
-export const LoginPage = () => {
+export const ForgotPasswordPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoginMode, setIsLoginMode] = useState(true);

@@ -85,7 +85,7 @@ func Load() *Config {
 		Google: GoogleOAuthConfig{
 			ClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 			ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
-			RedirectURL:  getEnv("GOOGLE_REDIRECT_URI", "http://localhost:8080/auth/google/callback"),
+			RedirectURL:  getEnv("GOOGLE_REDIRECT_URI", "http://localhost:8080/api/v1/auth/google/callback"),
 		},
 		Server: ServerConfig{
 			Port: getEnv("PORT", "8080"),
