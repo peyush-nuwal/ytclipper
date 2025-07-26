@@ -1,7 +1,15 @@
 import { Route, Routes } from 'react-router';
 
 import { AuthRouteGuard, ProtectedRouteGuard } from '@/components/guards';
-import { DashboardPage, HomePage, ProfilePage } from './pages';
+import { Helmet } from '@dr.pogodin/react-helmet';
+import {
+  DashboardPage,
+  HomePage,
+  ProfilePage,
+  TimestampsPage,
+  VideoDetailPage,
+  VideosPage,
+} from './pages';
 import { GoogleCallback } from './pages/google-callback';
 import { AuthRoutes } from './routes';
 
@@ -50,6 +58,14 @@ const App = () => {
 
   return (
     <div className='min-h-screen bg-gray-50'>
+      <Helmet>
+        <title>YTClipper</title>
+        <meta
+          name='description'
+          content='Your YouTube video timestamping tool'
+        />
+        <link rel='icon' href='/favicon.ico' />
+      </Helmet>
       <Routes>
         <Route
           path='/'
@@ -85,30 +101,30 @@ const App = () => {
           }
         />
 
-        {/*         <Route
+        <Route
           path='/videos'
           element={
-            <ProtectedRoute>
+            <ProtectedRouteGuard>
               <VideosPage />
-            </ProtectedRoute>
+            </ProtectedRouteGuard>
           }
         />
         <Route
           path='/videos/:id'
           element={
-            <ProtectedRoute>
+            <ProtectedRouteGuard>
               <VideoDetailPage />
-            </ProtectedRoute>
+            </ProtectedRouteGuard>
           }
         />
         <Route
           path='/timestamps/:videoId'
           element={
-            <ProtectedRoute>
+            <ProtectedRouteGuard>
               <TimestampsPage />
-            </ProtectedRoute>
+            </ProtectedRouteGuard>
           }
-        /> */}
+        />
       </Routes>
     </div>
   );

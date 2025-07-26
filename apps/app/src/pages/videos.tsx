@@ -1,40 +1,20 @@
 import { formatTimestamp } from '@/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle } from '@ytclipper/ui';
+import { useGetUserVideosQuery } from '@/services/videos';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Skeleton,
+} from '@ytclipper/ui';
 import { Calendar, Clock, Play } from 'lucide-react';
 import { Link } from 'react-router';
+import { v4 as uuidv4 } from 'uuid';
 
 export const VideosPage = () => {
-  // const { isAuthenticated } = useAuth();
+  const { data, isLoading } = useGetUserVideosQuery();
 
-  // if (!isAuthenticated) {
-  //   return (
-  //     <div className='min-h-screen bg-gray-50'>
-  //       <div className='p-8'>
-  //         <h1 className='text-2xl font-bold text-red-600'>Access Denied</h1>
-  //         <p className='text-gray-600 mt-2'>
-  //           Please log in to view your videos.
-  //         </p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
-  //
-  // if (isLoading) {
-  //   return <Loading />;
-  // }
-  //
-  // if (error) {
-  //   return (
-  //     <div className='p-8'>
-  //       <h1 className='text-2xl font-bold text-red-600'>
-  //         Error loading videos
-  //       </h1>
-  //       <p className='text-gray-600 mt-2'>{error.message}</p>
-  //     </div>
-  //   );
-  // }
-
-  const videos = [];
+  const videos = data?.data.videos || [];
 
   return (
     <div className='p-8 max-w-6xl mx-auto'>
@@ -45,7 +25,15 @@ export const VideosPage = () => {
         </p>
       </div>
 
-      {videos.length === 0 ? (
+      {isLoading ? (
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+          {Array.from({ length: 4 }, () => uuidv4()).map((id) => (
+            <Skeleton key={id} className='h-80 w-full rounded-lg' />
+          ))}
+        </div>
+      ) : null}
+
+      {videos.length === 0 && !isLoading ? (
         <div className='text-center py-12'>
           <p className='text-gray-500 text-lg'>No videos found.</p>
           <p className='text-gray-400 text-sm mt-2'>

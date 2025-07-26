@@ -1,3 +1,9 @@
+export type UniversalResponse<T> = {
+  success: boolean;
+  data: T;
+  timestamp: Date;
+  status: number;
+};
 export interface User {
   id: string;
   email: string;

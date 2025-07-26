@@ -1,13 +1,6 @@
 import { api } from './api';
 
-import type { AuthMeResponse, User } from '@/types';
-
-type UniversalResponse<T> = {
-  success: boolean;
-  data: T;
-  timestamp: Date;
-  status: number;
-};
+import type { AuthMeResponse, UniversalResponse, User } from '@/types';
 
 export interface LoginRequest {
   email: string;

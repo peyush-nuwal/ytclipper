@@ -1,3 +1,4 @@
+import { HelmetProvider } from '@dr.pogodin/react-helmet';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
@@ -20,9 +21,11 @@ createRoot(rootElement).render(
   <StrictMode>
     <Provider store={store}>
       <PersistGate loading={<PersistGateLoading />} persistor={persistor}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <HelmetProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </HelmetProvider>
       </PersistGate>
     </Provider>
   </StrictMode>,

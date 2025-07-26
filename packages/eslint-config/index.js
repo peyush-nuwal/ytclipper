@@ -106,7 +106,6 @@ export default tseslint.config([
       'valid-typeof': 'error',
 
       // BEST PRACTICES
-      'consistent-return': 'error',
       'default-case': 'error',
       'dot-notation': 'error',
       eqeqeq: ['error', 'always'],

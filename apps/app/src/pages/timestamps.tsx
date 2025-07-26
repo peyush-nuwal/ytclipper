@@ -1,14 +1,26 @@
 import Loading from '@/components/loading';
 // import { AddTimestampForm } from '@/components/timestamps/add-timestamp-form';
 // import { TimestampsList } from '@/components/timestamps/timestamps-list';
-import { useTimestamps } from '@/hooks/useTimestamps';
 // import { Card, CardContent, CardHeader, CardTitle } from '@ytclipper/ui';
+import { YouTubePlayer } from '@/components/timestamps/youtube-player';
+import { useYouTubePlayer } from '@/hooks/youtube-player';
+import { useGetTimestampsQuery } from '@/services/timestamps';
 import { Edit3, Plus, Save, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'react-router';
 
 export const TimestampsPage = () => {
   const { videoId } = useParams<{ videoId: string }>();
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
+  const { jumpToTimestamp } = useYouTubePlayer();
+
+  const { data: timestampsData, isLoading } = useGetTimestampsQuery(
+    videoId || '',
+    {
+      skip: !videoId,
+    },
+  );
+
   const [newTimestamp, setNewTimestamp] = useState({
     timestamp: '',
     title: '',
@@ -17,11 +29,6 @@ export const TimestampsPage = () => {
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState('');
-  const {
-    data: timestampsData,
-    isLoading,
-    error,
-  } = useTimestamps(videoId || '');
 
   const formatTimestamp = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -29,21 +36,32 @@ export const TimestampsPage = () => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  // const handleTimestampClick = (timestampSeconds: number) => {
-  //   // In a real app, this would seek to the timestamp in the video player
-  //   console.log('Seeking to timestamp:', timestampSeconds);
-  //   // For now, we'll just log it
-  //   const minutes = Math.floor(timestampSeconds / 60);
-  //   const seconds = timestampSeconds % 60;
-  //   console.log(`Would seek to ${minutes}:${String(seconds).padStart(2, '0')}`);
-  // };
+  const handleTimestampClick = (seconds: number) => {
+    if (isPlayerReady) {
+      jumpToTimestamp(seconds);
+    }
+  };
+  const handlePlayerReady = () => {
+    console.log('Player is ready!');
+    setIsPlayerReady(true);
+  };
+
+  const handlePlayerError = (error: number) => {
+    console.error('Player error:', error);
+    setIsPlayerReady(false);
+  };
 
   if (!videoId) {
     return (
-      <div className='p-8'>
-        <h1 className='text-2xl font-bold text-red-600'>
-          Error: Video ID not found
-        </h1>
+      <div className='min-h-screen flex items-center justify-center'>
+        <div className='text-center'>
+          <h2 className='text-xl font-semibold text-gray-900 mb-2'>
+            Invalid Video ID
+          </h2>
+          <p className='text-gray-600'>
+            No video ID provided in the URL parameters.
+          </p>
+        </div>
       </div>
     );
   }
@@ -52,31 +70,21 @@ export const TimestampsPage = () => {
     return <Loading />;
   }
 
-  if (error) {
-    return (
-      <div className='p-8'>
-        <h1 className='text-2xl font-bold text-red-600'>
-          Error loading timestamps
-        </h1>
-        <p className='text-gray-600 mt-2'>{error.message}</p>
-      </div>
-    );
-  }
-
   return (
     <div className='min-h-screen bg-gray-50 p-4'>
       <div className='max-w-7xl mx-auto'>
         <div className='flex gap-6 h-[calc(100vh-200px)]'>
-          {/* Left Side - Video Player */}
           <div className='w-2/3 bg-white rounded-lg shadow-lg p-6 flex flex-col'>
             <div className='aspect-video bg-black rounded-lg mb-4 flex items-center justify-center relative overflow-hidden flex-1'>
-              <iframe
-                src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1`}
-                title='YouTube video player'
-                className='absolute inset-0 w-full h-full'
-                allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
-                allowFullScreen
+              <YouTubePlayer
+                videoId={videoId}
+                onReady={handlePlayerReady}
+                onError={handlePlayerError}
+                className='w-full h-full'
               />
+            </div>
+            <div className='mb-4 text-sm text-gray-600'>
+              Player Status: {isPlayerReady ? '✅ Ready' : '⏳ Loading...'}
             </div>
 
             {/* Add New Timestamp - Moved to bottom of video */}
@@ -137,15 +145,15 @@ export const TimestampsPage = () => {
             <div className='flex items-center justify-between mb-4'>
               <h3 className='text-lg font-semibold'>Notes & Timestamps</h3>
               <div className='text-sm text-gray-500'>
-                {timestampsData?.timestamps?.length} timestamp
-                {timestampsData?.timestamps?.length !== 1 ? 's' : ''}
+                {timestampsData?.data?.timestamps?.length} timestamp
+                {timestampsData?.data?.timestamps?.length !== 1 ? 's' : ''}
               </div>
             </div>
 
             {/* Timestamps List */}
             <div className='flex-1 overflow-y-auto'>
               <div className='space-y-3'>
-                {timestampsData?.timestamps.map((timestamp) => (
+                {timestampsData?.data?.timestamps.map((timestamp) => (
                   <div
                     key={timestamp.id}
                     className='border rounded-lg p-4 hover:bg-gray-50 transition-colors'
@@ -156,6 +164,7 @@ export const TimestampsPage = () => {
                           className='text-blue-600 font-mono text-sm hover:underline'
                           onClick={() => {
                             console.log(`Jump to ${timestamp.timestamp}`);
+                            handleTimestampClick(timestamp.timestamp);
                             setEditingId(timestamp.id);
                           }}
                         >

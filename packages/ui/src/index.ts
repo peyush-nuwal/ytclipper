@@ -3,13 +3,15 @@
 export { Button, buttonVariants } from './components/button';
 export {
   Card,
-  CardHeader,
-  CardFooter,
-  CardTitle,
   CardAction,
-  CardDescription,
   CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
 } from './components/card';
+
+export * from './components/skeleton';
 
 // Export utilities
 export { cn } from './lib/utils';
