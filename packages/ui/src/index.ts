@@ -11,8 +11,10 @@ export {
   CardTitle,
 } from './components/card';
 
+export * from './components/resizable';
 export * from './components/skeleton';
 export * from './components/sonner';
+export * from './components/tabs';
 
 // Export utilities
 export { cn } from './lib/utils';
