@@ -10,6 +10,7 @@ import './index.css';
 import { persistor, store } from './store';
 
 import { PersistGateLoading } from '@/components/persistent-data-loading.tsx';
+import { Toaster } from '@ytclipper/ui';
 
 const rootElement = document.getElementById('root');
 
@@ -24,6 +25,7 @@ createRoot(rootElement).render(
         <HelmetProvider>
           <BrowserRouter>
             <App />
+            <Toaster />
           </BrowserRouter>
         </HelmetProvider>
       </PersistGate>

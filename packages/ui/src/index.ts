@@ -12,6 +12,7 @@ export {
 } from './components/card';
 
 export * from './components/skeleton';
+export * from './components/sonner';
 
 // Export utilities
 export { cn } from './lib/utils';

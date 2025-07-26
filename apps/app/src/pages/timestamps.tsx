@@ -7,15 +7,19 @@ import {
   useDeleteTimestampMutation,
   useGetTimestampsQuery,
 } from '@/services/timestamps';
-import { Plus } from 'lucide-react';
+import '@uiw/react-markdown-preview/markdown.css';
+import '@uiw/react-md-editor/markdown-editor.css';
+import { StickyNote } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { useParams } from 'react-router';
-import { formatTimestamp } from '../lib/utils';
+import { FloatingNoteTaker } from '../components/timestamps/floating-note-taking';
 
 export const TimestampsPage = () => {
   const { videoId } = useParams<{ videoId: string }>();
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const { jumpToTimestamp, playerRef } = useYouTubePlayer();
+  const [isFloatingNoteOpen, setIsFloatingNoteOpen] = useState(false);
 
   const {
     data: timestampsData,
@@ -28,40 +32,30 @@ export const TimestampsPage = () => {
   const [createTimestamp, { isLoading: isCreating }] =
     useCreateTimestampMutation();
 
-  const [newTimestamp, setNewTimestamp] = useState({
-    timestamp: '',
-    title: '',
-    note: '',
-    tags: [],
-  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState('');
   const [currentTimestamp, setCurrentTimestamp] = useState(0);
 
-  const handleAddTimestamp = async () => {
-    if (!videoId || !newTimestamp.title) {
+  const handleFloatingNoteAdd = async (data: {
+    title: string;
+    note: string;
+    tags: string[];
+    timestamp: number;
+  }) => {
+    if (!videoId) {
       return;
     }
-    try {
-      await createTimestamp({
-        video_id: videoId,
-        timestamp: currentTimestamp,
-        title: newTimestamp.title,
-        note: newTimestamp.note,
-        tags: newTimestamp.tags,
-      }).unwrap();
 
-      setNewTimestamp({
-        timestamp: '',
-        title: '',
-        note: '',
-        tags: [],
-      });
+    await createTimestamp({
+      video_id: videoId,
+      timestamp: data.timestamp,
+      title: data.title,
+      note: data.note,
+      tags: data.tags,
+    }).unwrap();
 
-      refetch();
-    } catch (err) {
-      console.error('Failed to create timestamp:', err);
-    }
+    refetch();
+    setIsFloatingNoteOpen(false);
   };
 
   useEffect(() => {
@@ -142,101 +136,75 @@ export const TimestampsPage = () => {
   }
 
   return (
-    <div className='min-h-screen bg-gray-50 p-4'>
-      <div className='max-w-7xl mx-auto'>
-        <div className='flex gap-6 h-[calc(100vh-200px)]'>
-          <div className='w-2/3 bg-white rounded-lg shadow-lg p-6 flex flex-col'>
-            <div className='aspect-video bg-black rounded-lg mb-4 flex items-center justify-center relative overflow-hidden flex-1'>
-              <YouTubePlayer
-                ref={playerRef}
-                videoId={videoId}
-                onReady={handlePlayerReady}
-                onError={handlePlayerError}
-                className='w-full h-full'
-              />
-            </div>
-            <div className='mb-4 text-sm text-gray-600'>
-              Player Status: {isPlayerReady ? '✅ Ready' : '⏳ Loading...'}
-            </div>
-
-            {/* Add New Timestamp - Moved to bottom of video */}
-            <div className='border rounded-lg p-4 bg-gray-50'>
-              <h4 className='font-medium mb-3'>Add New Timestamp</h4>
-              <div className='space-y-3'>
-                <div className='flex gap-2'>
-                  <div className='w-32 px-3 py-2 border rounded-md bg-gray-100 text-gray-800 text-sm text-center'>
-                    {formatTimestamp(currentTimestamp)}
-                  </div>
-                  <input
-                    type='text'
-                    placeholder='Title'
-                    value={newTimestamp.title}
-                    onChange={(e) =>
-                      setNewTimestamp({
-                        ...newTimestamp,
-                        title: e.target.value,
-                      })
-                    }
-                    className='flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-                  />
-                </div>
-                <textarea
-                  placeholder='Note (optional)'
-                  value={newTimestamp.note}
-                  onChange={(e) =>
-                    setNewTimestamp({ ...newTimestamp, note: e.target.value })
-                  }
-                  className='w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none'
-                  rows={2}
+    <div className='h-screen overflow-hidden'>
+      <PanelGroup direction='horizontal' className='flex w-full h-full'>
+        <Panel
+          minSize={50}
+          className='flex flex-col flex-grow border-r border-gray-200 min-w-0'
+        >
+          {/* Video Player */}
+          <div className='aspect-video bg-black'>
+            <YouTubePlayer
+              ref={playerRef}
+              videoId={videoId}
+              onReady={handlePlayerReady}
+              onError={handlePlayerError}
+              className='w-full h-full'
+            />
+            <button
+              onClick={() => setIsFloatingNoteOpen(true)}
+              className='absolute bottom-4 right-4 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+              title='Take a quick note'
+            >
+              <StickyNote size={20} />
+            </button>
+          </div>
+        </Panel>
+        <PanelResizeHandle className='w-2 bg-gray-300 cursor-col-resize' />
+        <Panel
+          minSize={20}
+          defaultSize={25}
+          className='flex flex-col bg-white border-gray-200 overflow-y-auto px-4 py-4'
+        >
+          <div className='flex justify-between items-center mb-4 sticky top-0 bg-white z-10 pb-2'>
+            <h2 className='text-lg font-bold text-gray-900'>
+              🕒 Notes & Timestamps
+            </h2>
+            <span className='text-sm text-gray-500'>
+              {timestampsData?.data?.timestamps?.length} total
+            </span>
+          </div>
+          <div className='space-y-3'>
+            {timestampsData?.data?.timestamps?.length ? (
+              timestampsData.data.timestamps.map((timestamp) => (
+                <TimestampCard
+                  key={timestamp.id}
+                  timestamp={timestamp}
+                  isEditing={editingId === timestamp.id}
+                  onSeek={handleTimestampClick}
+                  onEditStart={(id) => startEditing(id, timestamp.note)}
+                  onEditSave={saveEdit}
+                  onEditCancel={cancelEdit}
+                  onDelete={handleDeleteTimestamp}
+                  editNoteValue={editingNote}
+                  onEditNoteChange={setEditingNote}
                 />
-                <button
-                  onClick={handleAddTimestamp}
-                  className='w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2'
-                >
-                  <Plus size={16} />
-                  {isCreating ? 'Adding...' : 'Add Timestamp'}
-                </button>
+              ))
+            ) : (
+              <div className='text-center text-sm text-gray-500 pt-6'>
+                No timestamps added yet.
               </div>
-            </div>
+            )}
           </div>
-
-          <div className='w-1/3 bg-white rounded-lg shadow-lg p-6 flex flex-col'>
-            <div className='flex items-center justify-between mb-4'>
-              <h3 className='text-lg font-semibold'>Notes & Timestamps</h3>
-              <div className='text-sm text-gray-500'>
-                {timestampsData?.data?.timestamps?.length} timestamp
-                {timestampsData?.data?.timestamps?.length !== 1 ? 's' : ''}
-              </div>
-            </div>
-
-            <div className='flex-1 overflow-y-auto'>
-              <div className='space-y-3'>
-                {timestampsData?.data?.timestamps?.length ? (
-                  timestampsData.data.timestamps.map((timestamp) => (
-                    <TimestampCard
-                      key={timestamp.id}
-                      timestamp={timestamp}
-                      isEditing={editingId === timestamp.id}
-                      onSeek={handleTimestampClick}
-                      onEditStart={(id) => startEditing(id, timestamp.note)}
-                      onEditSave={saveEdit}
-                      onEditCancel={cancelEdit}
-                      onDelete={handleDeleteTimestamp}
-                      editNoteValue={editingNote}
-                      onEditNoteChange={setEditingNote}
-                    />
-                  ))
-                ) : (
-                  <div className='text-center py-8 text-gray-500'>
-                    <div className='mb-2'>No timestamps yet</div>
-                    <div className='text-sm'>Add timestamps to appear here</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        </Panel>
+      </PanelGroup>
+      <FloatingNoteTaker
+        isOpen={isFloatingNoteOpen}
+        onClose={() => setIsFloatingNoteOpen(false)}
+        currentTimestamp={currentTimestamp}
+        onAddTimestamp={handleFloatingNoteAdd}
+        isCreating={isCreating}
+      />
     </div>
   );
 };
