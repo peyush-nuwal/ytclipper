@@ -1,15 +1,17 @@
 import { Route, Routes } from 'react-router';
 
 import { AuthRouteGuard, ProtectedRouteGuard } from '@/components/guards';
-import { Helmet } from '@dr.pogodin/react-helmet';
+import { AppLayout } from '@/components/layout';
 import {
   DashboardPage,
+  ErrorPage,
   HomePage,
+  NotFoundPage,
   ProfilePage,
   TimestampsPage,
-  VideoDetailPage,
   VideosPage,
-} from './pages';
+} from '@/pages';
+import { Helmet } from '@dr.pogodin/react-helmet';
 import { GoogleCallback } from './pages/google-callback';
 import { AuthRoutes } from './routes';
 
@@ -84,47 +86,21 @@ const App = () => {
           }
         />
         <Route path='/auth/callback' element={<GoogleCallback />} />
-        <Route
-          path='/dashboard'
-          element={
-            <ProtectedRouteGuard>
-              <DashboardPage />
-            </ProtectedRouteGuard>
-          }
-        />
-        <Route
-          path='/profile'
-          element={
-            <ProtectedRouteGuard>
-              <ProfilePage />
-            </ProtectedRouteGuard>
-          }
-        />
 
         <Route
-          path='/videos'
           element={
             <ProtectedRouteGuard>
-              <VideosPage />
+              <AppLayout />
             </ProtectedRouteGuard>
           }
-        />
-        <Route
-          path='/videos/:id'
-          element={
-            <ProtectedRouteGuard>
-              <VideoDetailPage />
-            </ProtectedRouteGuard>
-          }
-        />
-        <Route
-          path='/timestamps/:videoId'
-          element={
-            <ProtectedRouteGuard>
-              <TimestampsPage />
-            </ProtectedRouteGuard>
-          }
-        />
+        >
+          <Route path='/dashboard' element={<DashboardPage />} />
+          <Route path='/profile' element={<ProfilePage />} />
+          <Route path='/videos' element={<VideosPage />} />
+          <Route path='/timestamps/:videoId' element={<TimestampsPage />} />
+        </Route>
+        <Route path='/error' element={<ErrorPage />} />
+        <Route path='*' element={<NotFoundPage />} />
       </Routes>
     </div>
   );

@@ -1,4 +1,3 @@
-import { formatTimestamp } from '@/lib/utils';
 import { useGetUserVideosQuery } from '@/services/videos';
 import {
   Card,
@@ -87,7 +86,7 @@ export const VideosPage = () => {
 
                   {/* Timestamp counter */}
                   <div className='absolute top-2 right-2 bg-black bg-opacity-80 text-white px-2 py-1 rounded text-sm z-30'>
-                    {video.timestamp_count} timestamps
+                    {video.count > 1 ? `${video.count} Notes` : '1 Note'}
                   </div>
                 </div>
 
@@ -102,23 +101,19 @@ export const VideosPage = () => {
                     <div className='flex items-center justify-between'>
                       <div className='flex items-center space-x-1'>
                         <Clock className='w-4 h-4' />
-                        <span>{video.timestamp_count} timestamps</span>
+                        <span>{video.count} timestamps</span>
                       </div>
                       <div className='flex items-center space-x-1'>
                         <Calendar className='w-4 h-4' />
                         <span>
-                          {new Date(video.latest_created).toLocaleDateString()}
+                          {video.latest_timestamp
+                            ? new Date(
+                                video.latest_timestamp,
+                              ).toLocaleDateString()
+                            : 'No date'}
                         </span>
                       </div>
                     </div>
-                    {video.first_timestamp !== undefined &&
-                      video.last_timestamp !== undefined && (
-                        <div className='text-xs text-gray-500'>
-                          Duration:{' '}
-                          {formatTimestamp(Math.floor(video.first_timestamp))} -{' '}
-                          {formatTimestamp(Math.floor(video.last_timestamp))}
-                        </div>
-                      )}
                   </div>
                 </CardContent>
               </Card>

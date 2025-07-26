@@ -2,18 +2,27 @@ import type { YouTubePlayerRef } from '@/components/timestamps/youtube-player';
 import { useCallback, useRef } from 'react';
 
 export const useYouTubePlayer = () => {
-  const playerRef = useRef<YouTubePlayerRef | null>(null);
+  const playerRef = useRef<YouTubePlayerRef>(null);
 
   const seekTo = useCallback((seconds: number) => {
-    playerRef.current?.seekTo(seconds);
+    if (playerRef.current) {
+      console.log('Hook: Seeking to', seconds);
+      playerRef.current.seekTo(seconds);
+    } else {
+      console.warn('Hook: Player ref not available');
+    }
   }, []);
 
   const play = useCallback(() => {
-    playerRef.current?.play();
+    if (playerRef.current) {
+      playerRef.current.play();
+    }
   }, []);
 
   const pause = useCallback(() => {
-    playerRef.current?.pause();
+    if (playerRef.current) {
+      playerRef.current.pause();
+    }
   }, []);
 
   const getCurrentTime = useCallback(() => {
@@ -24,13 +33,16 @@ export const useYouTubePlayer = () => {
     return playerRef.current?.getDuration() ?? 0;
   }, []);
 
-  const jumpToTimestamp = useCallback(
-    (seconds: number) => {
-      seekTo(seconds);
-      play();
-    },
-    [seekTo, play],
-  );
+  const jumpToTimestamp = useCallback((seconds: number) => {
+    if (playerRef.current) {
+      playerRef.current.seekTo(seconds);
+      setTimeout(() => {
+        playerRef.current?.play();
+      }, 100); // Small delay to ensure seek completes
+    } else {
+      console.warn('Hook: Player not available for jumping');
+    }
+  }, []);
 
   return {
     playerRef,

@@ -3,11 +3,8 @@ import { api } from './api';
 
 export interface VideoSummary {
   video_id: string;
-  timestamp_count: number;
-  first_timestamp?: number;
-  last_timestamp?: number;
-  earliest_created: string;
-  latest_created: string;
+  count: number;
+  latest_timestamp?: number;
 }
 
 export interface GetUserVideosResponse {

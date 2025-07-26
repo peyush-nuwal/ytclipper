@@ -1,25 +1,32 @@
 import Loading from '@/components/loading';
-// import { AddTimestampForm } from '@/components/timestamps/add-timestamp-form';
-// import { TimestampsList } from '@/components/timestamps/timestamps-list';
-// import { Card, CardContent, CardHeader, CardTitle } from '@ytclipper/ui';
+import { TimestampCard } from '@/components/timestamps/timestamp-card';
 import { YouTubePlayer } from '@/components/timestamps/youtube-player';
 import { useYouTubePlayer } from '@/hooks/youtube-player';
-import { useGetTimestampsQuery } from '@/services/timestamps';
-import { Edit3, Plus, Save, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
+import {
+  useCreateTimestampMutation,
+  useDeleteTimestampMutation,
+  useGetTimestampsQuery,
+} from '@/services/timestamps';
+import { Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router';
+import { formatTimestamp } from '../lib/utils';
 
 export const TimestampsPage = () => {
   const { videoId } = useParams<{ videoId: string }>();
   const [isPlayerReady, setIsPlayerReady] = useState(false);
-  const { jumpToTimestamp } = useYouTubePlayer();
+  const { jumpToTimestamp, playerRef } = useYouTubePlayer();
 
-  const { data: timestampsData, isLoading } = useGetTimestampsQuery(
-    videoId || '',
-    {
-      skip: !videoId,
-    },
-  );
+  const {
+    data: timestampsData,
+    isLoading,
+    refetch,
+  } = useGetTimestampsQuery(videoId || '', {
+    skip: !videoId,
+  });
+  const [deleteTimestamp] = useDeleteTimestampMutation();
+  const [createTimestamp, { isLoading: isCreating }] =
+    useCreateTimestampMutation();
 
   const [newTimestamp, setNewTimestamp] = useState({
     timestamp: '',
@@ -29,12 +36,48 @@ export const TimestampsPage = () => {
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState('');
+  const [currentTimestamp, setCurrentTimestamp] = useState(0);
 
-  const formatTimestamp = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  const handleAddTimestamp = async () => {
+    if (!videoId || !newTimestamp.title) {
+      return;
+    }
+    try {
+      await createTimestamp({
+        video_id: videoId,
+        timestamp: currentTimestamp,
+        title: newTimestamp.title,
+        note: newTimestamp.note,
+        tags: newTimestamp.tags,
+      }).unwrap();
+
+      setNewTimestamp({
+        timestamp: '',
+        title: '',
+        note: '',
+        tags: [],
+      });
+
+      refetch();
+    } catch (err) {
+      console.error('Failed to create timestamp:', err);
+    }
   };
+
+  useEffect(() => {
+    if (!isPlayerReady || !playerRef?.current) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const currentTime = playerRef.current?.getCurrentTime?.();
+      if (typeof currentTime === 'number') {
+        setCurrentTimestamp(currentTime);
+      }
+    }, 1000); // update every second
+
+    return () => clearInterval(interval);
+  }, [isPlayerReady, playerRef]);
 
   const handleTimestampClick = (seconds: number) => {
     if (isPlayerReady) {
@@ -49,6 +92,34 @@ export const TimestampsPage = () => {
   const handlePlayerError = (error: number) => {
     console.error('Player error:', error);
     setIsPlayerReady(false);
+  };
+  const startEditing = (id: string, currentNote: string) => {
+    setEditingId(id);
+    setEditingNote(currentNote);
+  };
+
+  const saveEdit = async (id: string, newNote: string) => {
+    console.log('Saving edit for:', id, 'with note:', newNote);
+    // Here you would call your API to update the timestamp
+    try {
+      // await updateTimestampApiCall(id, newNote);
+      setEditingId(null);
+    } catch (error) {
+      console.error('Failed to update timestamp:', error);
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleDeleteTimestamp = async (id: string) => {
+    try {
+      await deleteTimestamp(id).unwrap();
+      refetch();
+    } catch (error) {
+      console.error('Failed to delete timestamp:', error);
+    }
   };
 
   if (!videoId) {
@@ -77,6 +148,7 @@ export const TimestampsPage = () => {
           <div className='w-2/3 bg-white rounded-lg shadow-lg p-6 flex flex-col'>
             <div className='aspect-video bg-black rounded-lg mb-4 flex items-center justify-center relative overflow-hidden flex-1'>
               <YouTubePlayer
+                ref={playerRef}
                 videoId={videoId}
                 onReady={handlePlayerReady}
                 onError={handlePlayerError}
@@ -92,19 +164,9 @@ export const TimestampsPage = () => {
               <h4 className='font-medium mb-3'>Add New Timestamp</h4>
               <div className='space-y-3'>
                 <div className='flex gap-2'>
-                  <input
-                    type='number'
-                    step='0.1'
-                    placeholder='Time (seconds)'
-                    value={newTimestamp.timestamp}
-                    onChange={(e) =>
-                      setNewTimestamp({
-                        ...newTimestamp,
-                        timestamp: e.target.value,
-                      })
-                    }
-                    className='w-32 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-                  />
+                  <div className='w-32 px-3 py-2 border rounded-md bg-gray-100 text-gray-800 text-sm text-center'>
+                    {formatTimestamp(currentTimestamp)}
+                  </div>
                   <input
                     type='text'
                     placeholder='Title'
@@ -128,19 +190,16 @@ export const TimestampsPage = () => {
                   rows={2}
                 />
                 <button
-                  onClick={() => {
-                    console.log('Adding timestamp:', newTimestamp);
-                  }}
+                  onClick={handleAddTimestamp}
                   className='w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2'
                 >
                   <Plus size={16} />
-                  Add Timestamp
+                  {isCreating ? 'Adding...' : 'Add Timestamp'}
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Right Side - Notes */}
           <div className='w-1/3 bg-white rounded-lg shadow-lg p-6 flex flex-col'>
             <div className='flex items-center justify-between mb-4'>
               <h3 className='text-lg font-semibold'>Notes & Timestamps</h3>
@@ -150,103 +209,29 @@ export const TimestampsPage = () => {
               </div>
             </div>
 
-            {/* Timestamps List */}
             <div className='flex-1 overflow-y-auto'>
               <div className='space-y-3'>
-                {timestampsData?.data?.timestamps.map((timestamp) => (
-                  <div
-                    key={timestamp.id}
-                    className='border rounded-lg p-4 hover:bg-gray-50 transition-colors'
-                  >
-                    <div className='flex items-start justify-between mb-2'>
-                      <div className='flex items-center gap-3'>
-                        <button
-                          className='text-blue-600 font-mono text-sm hover:underline'
-                          onClick={() => {
-                            console.log(`Jump to ${timestamp.timestamp}`);
-                            handleTimestampClick(timestamp.timestamp);
-                            setEditingId(timestamp.id);
-                          }}
-                        >
-                          {formatTimestamp(timestamp.timestamp)}
-                        </button>
-                        <h5 className='font-medium text-gray-900'>
-                          {timestamp.title}
-                        </h5>
-                      </div>
-                      <div className='flex items-center gap-1'>
-                        <button
-                          onClick={() => {
-                            console.log(`Edit timestamp ${timestamp.id}`);
-                          }}
-                          className='p-1 text-gray-500 hover:text-blue-600 transition-colors'
-                        >
-                          <Edit3 size={14} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            console.log('Delete timestamp');
-                          }}
-                          className='p-1 text-gray-500 hover:text-red-600 transition-colors'
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {editingId === timestamp.id ? (
-                      <div className='space-y-2'>
-                        <textarea
-                          value={editingNote}
-                          onChange={(e) => setEditingNote(e.target.value)}
-                          className='w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none'
-                          rows={2}
-                        />
-                        <div className='flex gap-2'>
-                          <button
-                            onClick={() => {
-                              console.log('Saving edited note:', editingNote);
-                            }}
-                            className='flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors'
-                          >
-                            <Save size={12} />
-                            Save
-                          </button>
-                          <button
-                            onClick={() => {
-                              console.log('Cancel editing');
-                            }}
-                            className='flex items-center gap-1 px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors'
-                          >
-                            <X size={12} />
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className='text-gray-700 text-sm mb-2'>
-                          {timestamp.note}
-                        </p>
-                        <div className='flex justify-between items-center'>
-                          <p className='text-xs text-gray-500'>
-                            {new Date(
-                              timestamp.created_at,
-                            ).toLocaleDateString()}
-                          </p>
-                          {timestamp.updated_at !== timestamp.created_at && (
-                            <p className='text-xs text-gray-400'>
-                              Updated:{' '}
-                              {new Date(
-                                timestamp.updated_at,
-                              ).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                {timestampsData?.data?.timestamps?.length ? (
+                  timestampsData.data.timestamps.map((timestamp) => (
+                    <TimestampCard
+                      key={timestamp.id}
+                      timestamp={timestamp}
+                      isEditing={editingId === timestamp.id}
+                      onSeek={handleTimestampClick}
+                      onEditStart={(id) => startEditing(id, timestamp.note)}
+                      onEditSave={saveEdit}
+                      onEditCancel={cancelEdit}
+                      onDelete={handleDeleteTimestamp}
+                      editNoteValue={editingNote}
+                      onEditNoteChange={setEditingNote}
+                    />
+                  ))
+                ) : (
+                  <div className='text-center py-8 text-gray-500'>
+                    <div className='mb-2'>No timestamps yet</div>
+                    <div className='text-sm'>Add timestamps to appear here</div>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>

@@ -1,81 +1,152 @@
-import { useDeleteTimestamp } from '@/hooks/useTimestamps';
-import { formatTimestamp } from '@/lib/utils';
-import { type Timestamp } from '@/services';
-import { Button } from '@ytclipper/ui';
-import { Trash2 } from 'lucide-react';
+import { formatDistance } from 'date-fns';
+import { Edit3, MoreVertical, Play, Save, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
 
 interface TimestampCardProps {
-  timestamp: Timestamp;
-  onTimestampClick?: (timestampSeconds: number) => void;
+  timestamp: {
+    id: string;
+    timestamp: number;
+    title: string;
+    note: string;
+    created_at: string;
+    updated_at: string;
+  };
+  isEditing: boolean;
+  onSeek: (seconds: number) => void;
+  onEditStart: (id: string) => void;
+  onEditSave: (id: string, newNote: string) => void;
+  onEditCancel: () => void;
+  onDelete: (id: string) => void;
+  editNoteValue: string;
+  onEditNoteChange: (value: string) => void;
 }
 
 export const TimestampCard = ({
   timestamp,
-  onTimestampClick,
+  isEditing,
+  onSeek,
+  onEditStart,
+  onEditSave,
+  onEditCancel,
+  onDelete,
+  editNoteValue,
+  onEditNoteChange,
 }: TimestampCardProps) => {
-  const deleteTimestamp = useDeleteTimestamp();
+  const [showOptions, setShowOptions] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const handleTimestampClick = () => {
-    if (onTimestampClick) {
-      onTimestampClick(timestamp.timestamp);
-    }
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const handleDelete = async () => {
-    // eslint-disable-next-line no-alert
-    if (window.confirm('Are you sure you want to delete this timestamp?')) {
-      deleteTimestamp.mutate(timestamp.id);
-    }
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return formatDistance(date, new Date(), { addSuffix: true });
   };
 
   return (
-    <div className='bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow'>
-      <div className='flex items-start justify-between'>
-        <div className='flex-1'>
-          <div className='flex items-center gap-2 mb-2'>
-            <button
-              onClick={handleTimestampClick}
-              className='text-blue-600 hover:text-blue-800 font-mono text-sm bg-blue-50 px-2 py-1 rounded'
-            >
-              {formatTimestamp(Math.floor(timestamp.timestamp))}
-            </button>
-            {timestamp.title ? (
-              <h3 className='font-medium text-gray-900'>{timestamp.title}</h3>
-            ) : null}
-          </div>
-
-          {timestamp.note ? (
-            <p className='text-gray-700 text-sm mb-2'>{timestamp.note}</p>
-          ) : null}
-
-          {timestamp.tags && timestamp.tags.length > 0 ? (
-            <div className='flex flex-wrap gap-1 mb-2'>
-              {timestamp.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className='inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs'
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          ) : null}
-
-          <div className='text-xs text-gray-500'>
-            {new Date(timestamp.created_at).toLocaleDateString()}
-          </div>
+    <div className='border rounded-lg p-4 hover:bg-gray-50 transition-colors relative'>
+      <div className='flex items-start justify-between mb-2'>
+        <div className='flex items-center gap-3'>
+          <button
+            className='flex items-center gap-1 text-blue-600 font-medium hover:text-blue-800 transition-colors'
+            onClick={() => onSeek(timestamp.timestamp)}
+          >
+            <Play size={14} />
+            <span className='font-mono'>{formatTime(timestamp.timestamp)}</span>
+          </button>
+          <h5 className='font-semibold text-gray-900'>{timestamp.title}</h5>
         </div>
 
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={handleDelete}
-          disabled={deleteTimestamp.isPending}
-          className='text-red-600 hover:text-red-800 hover:bg-red-50'
-        >
-          <Trash2 className='h-4 w-4' />
-        </Button>
+        <div className='relative'>
+          <button
+            onClick={() => setShowOptions(!showOptions)}
+            className='p-1 text-gray-500 hover:bg-gray-200 rounded-full transition-colors'
+          >
+            <MoreVertical size={16} />
+          </button>
+
+          {showOptions ? (
+            <div className='absolute right-0 top-8 bg-white rounded-md shadow-lg border z-10 w-40'>
+              <button
+                onClick={() => {
+                  onEditStart(timestamp.id);
+                  setShowOptions(false);
+                }}
+                className='w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2'
+              >
+                <Edit3 size={14} /> Edit
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmDelete(true);
+                  setShowOptions(false);
+                }}
+                className='w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-red-600'
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
+
+      {isEditing ? (
+        <div className='space-y-3 mt-2'>
+          <textarea
+            value={editNoteValue}
+            onChange={(e) => onEditNoteChange(e.target.value)}
+            className='w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none'
+            rows={3}
+          />
+          <div className='flex gap-2 justify-end'>
+            <button
+              onClick={() => onEditSave(timestamp.id, editNoteValue)}
+              className='flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors'
+            >
+              <Save size={14} /> Save
+            </button>
+            <button
+              onClick={onEditCancel}
+              className='flex items-center gap-1 px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors'
+            >
+              <X size={14} /> Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <p className='text-gray-700 mb-3'>{timestamp.note}</p>
+          <div className='flex justify-between items-center text-xs text-gray-500'>
+            <span>Created {formatDate(timestamp.created_at)}</span>
+            {timestamp.updated_at !== timestamp.created_at && (
+              <span>Updated {formatDate(timestamp.updated_at)}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {confirmDelete ? (
+        <div className='absolute inset-0 bg-white bg-opacity-95 rounded-lg flex flex-col items-center justify-center p-4'>
+          <p className='text-center mb-3 font-medium'>Delete this timestamp?</p>
+          <div className='flex gap-2'>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className='px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 transition-colors'
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => onDelete(timestamp.id)}
+              className='px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors flex items-center gap-1'
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
