@@ -44,7 +44,7 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 	googleService := auth.NewGoogleOAuthService(&cfg.Google, &cfg.Auth, jwtService, db, &cfg.Server)
 	authMiddleware := auth.NewAuthMiddleware(jwtService, &cfg.Auth, db)
 	authHandlers := auth.NewAuthHandlers(googleService, authMiddleware, jwtService, emailService, db)
-	timestampHandlers := handlers.NewTimestampHandlers(db)
+	timestampHandlers := handlers.NewTimestampHandlers(db, &cfg.OpenAI)
 
 	r.NoRoute(func(c *gin.Context) {
 		middleware.RespondWithError(c, http.StatusNotFound, "NOT_FOUND", "The requested resource could not be found", gin.H{
@@ -113,6 +113,11 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 				timestampRoutes.POST("/delete-many", timestampHandlers.DeleteMultipleTimestamps)
 				timestampRoutes.GET("/videos", timestampHandlers.GetAllVideosWithTimestamps)
 				timestampRoutes.GET("/recent", timestampHandlers.GetRecentTimestamps)
+				timestampRoutes.POST("/backfill-embeddings-async", timestampHandlers.BackfillEmbeddingsAsync)
+				timestampRoutes.GET("/embedding-status", timestampHandlers.GetEmbeddingStatus)
+				timestampRoutes.POST("/search", timestampHandlers.SearchTimestamps)
+				timestampRoutes.POST("/summary", timestampHandlers.GenerateSummary)
+				timestampRoutes.POST("/question", timestampHandlers.AnswerQuestion)
 			}
 		}
 	}

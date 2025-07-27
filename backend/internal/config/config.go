@@ -19,8 +19,13 @@ type Config struct {
 	Google     GoogleOAuthConfig
 	API        APIConfig
 	Monitoring MonitoringConfig
+	OpenAI     OpenAIConfig
 }
 
+type OpenAIConfig struct {
+	APIKey         string
+	EmbeddingModel string
+}
 type GoogleOAuthConfig struct {
 	ClientID     string
 	ClientSecret string
@@ -128,6 +133,10 @@ func Load() *Config {
 		Monitoring: MonitoringConfig{
 			MetricsEnabled: getBoolEnv("METRICS_ENABLED", false),
 			TracingEnabled: getBoolEnv("TRACING_ENABLED", false),
+		},
+		OpenAI: OpenAIConfig{
+			APIKey:         getEnv("OPENAI_API_KEY", ""),
+			EmbeddingModel: getEnv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
 		},
 	}
 }
