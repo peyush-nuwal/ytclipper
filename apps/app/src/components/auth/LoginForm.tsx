@@ -1,4 +1,3 @@
-import { useAuth } from '@/hooks/useAuth';
 import React, { useState } from 'react';
 
 interface LoginFormProps {
@@ -10,12 +9,20 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleForm }) => {
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState('');
 
-  const {
-    loginWithEmailPassword,
-    loginWithGoogle,
-    isLoggingIn,
-    error: authError,
-  } = useAuth();
+  // const {
+  //   loginWithEmailPassword,
+  //   loginWithGoogle,
+  //   isLoggingIn,
+  //   error: authError,
+  // } = useAuth();
+
+  const loginWithEmailPassword = async (data: {
+    email: string;
+    password: string;
+  }) => {};
+  const loginWithGoogle = () => {};
+  const isLoggingIn = false; // Replace with actual state from useAuth
+  const authError = null; // Replace with actual error from useAuth
 
   const error = localError || authError;
   const loading = isLoggingIn;

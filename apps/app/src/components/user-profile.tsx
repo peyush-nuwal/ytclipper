@@ -1,13 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@ytclipper/ui';
-import { useEffect, useState } from 'react';
-import { useAuth } from '../hooks/useAuth';
-import {
-  getExtensionStatus,
-  syncAuthenticatedUser,
-} from '../services/extension-sync';
+import { useState } from 'react';
+import { useGetCurrentUserQuery } from '../services/auth';
 
 const UserProfile = () => {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { data, isLoading, isError } = useGetCurrentUserQuery();
   const [extensionStatus, setExtensionStatus] = useState<{
     available: boolean;
     extensionId: string;
@@ -18,55 +14,55 @@ const UserProfile = () => {
   );
   const [isSyncing, setIsSyncing] = useState(false);
 
-  console.log('UserProfile', { user, isAuthenticated, isLoading });
-
   // Check extension status and sync auth state
-  useEffect(() => {
-    const status = getExtensionStatus();
-    setExtensionStatus(status);
+  // useEffect(() => {
+  //   const status = getExtensionStatus();
+  //   setExtensionStatus(status);
 
-    // If user is authenticated and extension is available, ensure sync
-    if (isAuthenticated && user && status.available) {
-      setIsSyncing(true);
-      syncAuthenticatedUser(user)
-        .then((result) => {
-          console.log('🔄 Extension auth sync result:', result);
-          setSyncResult(result.success ? 'success' : 'error');
-          if (result.success) {
-            setLastSyncTime(result.timestamp);
-          }
-        })
-        .catch((error) => {
-          console.warn('❌ Extension auth sync failed:', error);
-          setSyncResult('error');
-        })
-        .finally(() => {
-          setIsSyncing(false);
-        });
-    }
-  }, [isAuthenticated, user]);
+  //   // If user is authenticated and extension is available, ensure sync
+  //   if (user && status.available) {
+  //     setIsSyncing(true);
+  //     syncAuthenticatedUser(user)
+  //       .then((result) => {
+  //         console.log('🔄 Extension auth sync result:', result);
+  //         setSyncResult(result.success ? 'success' : 'error');
+  //         if (result.success) {
+  //           setLastSyncTime(result.timestamp);
+  //         }
+  //       })
+  //       .catch((error) => {
+  //         console.warn('❌ Extension auth sync failed:', error);
+  //         setSyncResult('error');
+  //       })
+  //       .finally(() => {
+  //         setIsSyncing(false);
+  //       });
+  //   }
+  // }, [isAuthenticated, user]);
 
-  const handleManualSync = async () => {
-    if (!user || !extensionStatus?.available || isSyncing) {
-      return;
-    }
+  const handleManualSync = async () => {};
 
-    setIsSyncing(true);
-    setSyncResult(null);
+  // const handleManualSync = async () => {
+  //   if (!user || !extensionStatus?.available || isSyncing) {
+  //     return;
+  //   }
 
-    try {
-      const result = await syncAuthenticatedUser(user);
-      setSyncResult(result.success ? 'success' : 'error');
-      if (result.success) {
-        setLastSyncTime(result.timestamp);
-      }
-    } catch (error) {
-      console.warn('❌ Manual extension sync failed:', error);
-      setSyncResult('error');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  //   setIsSyncing(true);
+  //   setSyncResult(null);
+
+  //   try {
+  //     const result = await syncAuthenticatedUser(user);
+  //     setSyncResult(result.success ? 'success' : 'error');
+  //     if (result.success) {
+  //       setLastSyncTime(result.timestamp);
+  //     }
+  //   } catch (error) {
+  //     console.warn('❌ Manual extension sync failed:', error);
+  //     setSyncResult('error');
+  //   } finally {
+  //     setIsSyncing(false);
+  //   }
+  // };
   if (isLoading) {
     return (
       <Card className='max-w-md'>
@@ -80,15 +76,17 @@ const UserProfile = () => {
     );
   }
 
-  if (!isAuthenticated || !user) {
+  if (!data?.success || isError) {
     return null;
   }
+
+  const user = data.data.user;
 
   return (
     <Card className='max-w-md'>
       <CardHeader>
         <CardTitle className='flex items-center space-x-3'>
-          {user.picture ? (
+          {user?.picture ? (
             <img
               src={user.picture}
               alt={user.name}
@@ -109,7 +107,7 @@ const UserProfile = () => {
           </p>
           <p>
             <span className='font-medium'>Provider:</span>{' '}
-            {user.provider || user.primary_provider || 'Email'}
+            {user.provider || user.primary_id || 'Email'}
           </p>
           <p>
             <span className='font-medium'>Member since:</span>{' '}

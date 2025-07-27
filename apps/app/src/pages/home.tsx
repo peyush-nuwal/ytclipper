@@ -8,11 +8,11 @@ import {
 import { Bookmark, Clock, Play, Share2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 
-import { useAuth } from '../hooks/useAuth';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export const HomePage = () => {
-  const { isAuthenticated, isInitialized } = useAuth();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export const HomePage = () => {
                   size='lg'
                   className='w-full bg-blue-600 hover:bg-blue-700 text-white'
                 >
-                  <Link to='/auth'>Sign In / Register</Link>
+                  <Link to='/auth/login'>Sign In / Register</Link>
                 </Button>
               </CardContent>
             </Card>

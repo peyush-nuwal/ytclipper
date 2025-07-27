@@ -12,6 +12,7 @@ import {
 import storage from 'redux-persist/lib/storage';
 
 import { ENV } from '@/config';
+import { api } from '@/services/api';
 import authSlice from './slices/authSlice';
 import timestampSlice from './slices/timestampSlice';
 import uiSlice from './slices/uiSlice';
@@ -29,6 +30,7 @@ const rootReducer = combineReducers({
   ui: uiSlice,
   videos: videoSlice,
   timestamps: timestampSlice,
+  [api.reducerPath]: api.reducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
@@ -40,7 +42,7 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
       },
-    }),
+    }).concat(api.middleware),
   devTools: ENV !== 'production',
 });
 

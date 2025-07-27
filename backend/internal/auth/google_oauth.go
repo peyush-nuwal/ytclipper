@@ -40,6 +40,7 @@ type GoogleUserInfo struct {
 }
 
 func NewGoogleOAuthService(cfg *config.GoogleOAuthConfig, authCfg *config.AuthConfig, jwtService *JWTService, db *database.Database, server *config.ServerConfig) *GoogleOAuthService {
+	fmt.Println("Initializing Google OAuth Service with Redirect URL:", cfg.RedirectURL)
 	oauth := &oauth2.Config{
 		ClientID:     cfg.ClientID,
 		ClientSecret: cfg.ClientSecret,

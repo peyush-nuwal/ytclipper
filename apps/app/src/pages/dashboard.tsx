@@ -6,7 +6,6 @@ import {
   CardTitle,
 } from '@ytclipper/ui';
 import { Link } from 'react-router';
-
 import LogoutButton from '../components/logout-button';
 import UserProfile from '../components/user-profile';
 

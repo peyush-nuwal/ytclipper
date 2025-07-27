@@ -19,8 +19,13 @@ type Config struct {
 	Google     GoogleOAuthConfig
 	API        APIConfig
 	Monitoring MonitoringConfig
+	OpenAI     OpenAIConfig
 }
 
+type OpenAIConfig struct {
+	APIKey         string
+	EmbeddingModel string
+}
 type GoogleOAuthConfig struct {
 	ClientID     string
 	ClientSecret string
@@ -85,7 +90,7 @@ func Load() *Config {
 		Google: GoogleOAuthConfig{
 			ClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 			ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
-			RedirectURL:  getEnv("GOOGLE_REDIRECT_URI", "http://localhost:8080/auth/google/callback"),
+			RedirectURL:  getEnv("GOOGLE_REDIRECT_URI", "http://localhost:8080/api/v1/auth/google/callback"),
 		},
 		Server: ServerConfig{
 			Port: getEnv("PORT", "8080"),
@@ -128,6 +133,10 @@ func Load() *Config {
 		Monitoring: MonitoringConfig{
 			MetricsEnabled: getBoolEnv("METRICS_ENABLED", false),
 			TracingEnabled: getBoolEnv("TRACING_ENABLED", false),
+		},
+		OpenAI: OpenAIConfig{
+			APIKey:         getEnv("OPENAI_API_KEY", ""),
+			EmbeddingModel: getEnv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
 		},
 	}
 }

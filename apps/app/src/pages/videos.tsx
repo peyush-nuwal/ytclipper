@@ -1,44 +1,19 @@
-import Loading from '@/components/loading';
-import { useAuth } from '@/hooks/useAuth';
-import { useUserVideos } from '@/hooks/useVideos';
-import { formatTimestamp } from '@/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle } from '@ytclipper/ui';
+import { useGetUserVideosQuery } from '@/services/videos';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Skeleton,
+} from '@ytclipper/ui';
 import { Calendar, Clock, Play } from 'lucide-react';
 import { Link } from 'react-router';
+import { v4 as uuidv4 } from 'uuid';
 
 export const VideosPage = () => {
-  const { isAuthenticated } = useAuth();
-  const { data: videosData, isLoading, error } = useUserVideos();
+  const { data, isLoading } = useGetUserVideosQuery();
 
-  if (!isAuthenticated) {
-    return (
-      <div className='min-h-screen bg-gray-50'>
-        <div className='p-8'>
-          <h1 className='text-2xl font-bold text-red-600'>Access Denied</h1>
-          <p className='text-gray-600 mt-2'>
-            Please log in to view your videos.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return <Loading />;
-  }
-
-  if (error) {
-    return (
-      <div className='p-8'>
-        <h1 className='text-2xl font-bold text-red-600'>
-          Error loading videos
-        </h1>
-        <p className='text-gray-600 mt-2'>{error.message}</p>
-      </div>
-    );
-  }
-
-  const videos = videosData?.videos || [];
+  const videos = data?.data.videos || [];
 
   return (
     <div className='p-8 max-w-6xl mx-auto'>
@@ -49,7 +24,15 @@ export const VideosPage = () => {
         </p>
       </div>
 
-      {videos.length === 0 ? (
+      {isLoading ? (
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+          {Array.from({ length: 4 }, () => uuidv4()).map((id) => (
+            <Skeleton key={id} className='h-80 w-full rounded-lg' />
+          ))}
+        </div>
+      ) : null}
+
+      {videos.length === 0 && !isLoading ? (
         <div className='text-center py-12'>
           <p className='text-gray-500 text-lg'>No videos found.</p>
           <p className='text-gray-400 text-sm mt-2'>
@@ -103,7 +86,7 @@ export const VideosPage = () => {
 
                   {/* Timestamp counter */}
                   <div className='absolute top-2 right-2 bg-black bg-opacity-80 text-white px-2 py-1 rounded text-sm z-30'>
-                    {video.timestamp_count} timestamps
+                    {video.count > 1 ? `${video.count} Notes` : '1 Note'}
                   </div>
                 </div>
 
@@ -118,23 +101,19 @@ export const VideosPage = () => {
                     <div className='flex items-center justify-between'>
                       <div className='flex items-center space-x-1'>
                         <Clock className='w-4 h-4' />
-                        <span>{video.timestamp_count} timestamps</span>
+                        <span>{video.count} timestamps</span>
                       </div>
                       <div className='flex items-center space-x-1'>
                         <Calendar className='w-4 h-4' />
                         <span>
-                          {new Date(video.latest_created).toLocaleDateString()}
+                          {video.latest_timestamp
+                            ? new Date(
+                                video.latest_timestamp,
+                              ).toLocaleDateString()
+                            : 'No date'}
                         </span>
                       </div>
                     </div>
-                    {video.first_timestamp !== undefined &&
-                      video.last_timestamp !== undefined && (
-                        <div className='text-xs text-gray-500'>
-                          Duration:{' '}
-                          {formatTimestamp(Math.floor(video.first_timestamp))} -{' '}
-                          {formatTimestamp(Math.floor(video.last_timestamp))}
-                        </div>
-                      )}
                   </div>
                 </CardContent>
               </Card>

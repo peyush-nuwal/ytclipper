@@ -1,5 +1,4 @@
-import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { HelmetProvider } from '@dr.pogodin/react-helmet';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
@@ -8,11 +7,10 @@ import { PersistGate } from 'redux-persist/integration/react';
 
 import App from './app.tsx';
 import './index.css';
-import { queryClient } from './lib/react-query';
 import { persistor, store } from './store';
 
-import { ENV } from '@/config.ts';
 import { PersistGateLoading } from '@/components/persistent-data-loading.tsx';
+import { Toaster } from '@ytclipper/ui';
 
 const rootElement = document.getElementById('root');
 
@@ -24,14 +22,12 @@ createRoot(rootElement).render(
   <StrictMode>
     <Provider store={store}>
       <PersistGate loading={<PersistGateLoading />} persistor={persistor}>
-        <QueryClientProvider client={queryClient}>
+        <HelmetProvider>
           <BrowserRouter>
             <App />
+            <Toaster />
           </BrowserRouter>
-          {ENV === 'development' && (
-            <ReactQueryDevtools initialIsOpen={false} />
-          )}
-        </QueryClientProvider>
+        </HelmetProvider>
       </PersistGate>
     </Provider>
   </StrictMode>,

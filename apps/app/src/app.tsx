@@ -1,116 +1,107 @@
 import { Route, Routes } from 'react-router';
 
-import { useEffect } from 'react';
-import { AuthCallback } from './components/auth-callback';
-import Loading from './components/loading';
-import { NotificationSystem } from './components/NotificationSystem';
-import { ProtectedRoute } from './components/protected-route';
-import { useAuth } from './hooks/useAuth';
-import { setupTokenRefresh } from './lib/token-refresh';
+import { AuthRouteGuard, ProtectedRouteGuard } from '@/components/guards';
+import { AppLayout } from '@/components/layout';
 import {
   DashboardPage,
+  ErrorPage,
   HomePage,
-  LoginPage,
+  NotFoundPage,
   ProfilePage,
   TimestampsPage,
-  VideoDetailPage,
   VideosPage,
-} from './pages';
-import { syncAuthState } from './services/extension-sync';
+} from '@/pages';
+import { Helmet } from '@dr.pogodin/react-helmet';
+import { GoogleCallback } from './pages/google-callback';
+import { AuthRoutes } from './routes';
 
 const App = () => {
-  const { isInitialized, isAuthenticated, user, token, tokenExpiry } =
-    useAuth();
-  useEffect(() => {
-    if (isInitialized) {
-      syncAuthState(isAuthenticated, user)
-        .then((result) => {
-          if (result.success) {
-            console.log('✅ App-level extension sync successful');
-          } else {
-            console.warn('❌ App-level extension sync failed:', result.error);
-          }
-        })
-        .catch((error) => {
-          console.warn('❌ App-level extension sync error:', error);
-        });
-    }
-  }, [isInitialized, isAuthenticated, user, token, tokenExpiry]);
-
-  useEffect(() => {
-    if (isInitialized && isAuthenticated && !token) {
-      const cleanup = setupTokenRefresh();
-      return cleanup;
-    }
-    return undefined;
-  }, [isInitialized, isAuthenticated, token]);
-
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.source !== window) {
-        return;
-      }
-      if (event.data.type === 'CHECK_AUTH_STATUS') {
-        syncAuthState(isAuthenticated, user).catch(console.warn);
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [user, isAuthenticated, tokenExpiry, token]);
-
-  if (!isInitialized) {
-    return <Loading />;
-  }
+  // useEffect(() => {
+  //   if (isInitialized) {
+  //     syncAuthState(isAuthenticated, user)
+  //       .then((result) => {
+  //         if (result.success) {
+  //           console.log('✅ App-level extension sync successful');
+  //         } else {
+  //           console.warn('❌ App-level extension sync failed:', result.error);
+  //         }
+  //       })
+  //       .catch((error) => {
+  //         console.warn('❌ App-level extension sync error:', error);
+  //       });
+  //   }
+  // }, [isInitialized, isAuthenticated, user, token, tokenExpiry]);
+  //
+  // useEffect(() => {
+  //   if (isInitialized && isAuthenticated && !token) {
+  //     const cleanup = setupTokenRefresh();
+  //     return cleanup;
+  //   }
+  //   return undefined;
+  // }, [isInitialized, isAuthenticated, token]);
+  //
+  // useEffect(() => {
+  //   const handleMessage = (event: MessageEvent) => {
+  //     if (event.source !== window) {
+  //       return;
+  //     }
+  //     if (event.data.type === 'CHECK_AUTH_STATUS') {
+  //       syncAuthState(isAuthenticated, user).catch(console.warn);
+  //     }
+  //   };
+  //
+  //   window.addEventListener('message', handleMessage);
+  //   return () => window.removeEventListener('message', handleMessage);
+  // }, [user, isAuthenticated, tokenExpiry, token]);
+  //
+  // if (!isInitialized) {
+  //   return <Loading />;
+  // }
 
   return (
     <div className='min-h-screen bg-gray-50'>
+      <Helmet>
+        <title>YTClipper</title>
+        <meta
+          name='description'
+          content='Your YouTube video timestamping tool'
+        />
+        <link rel='icon' href='/favicon.ico' />
+      </Helmet>
       <Routes>
-        <Route path='/' element={<HomePage />} />
-        <Route path='/auth' element={<LoginPage />} />
-        <Route path='/auth/callback' element={<AuthCallback />} />
         <Route
-          path='/dashboard'
+          path='/'
           element={
-            <ProtectedRoute>
-              <DashboardPage />
-            </ProtectedRoute>
+            <AuthRouteGuard>
+              <HomePage />
+            </AuthRouteGuard>
           }
         />
         <Route
-          path='/profile'
+          path='/*'
           element={
-            <ProtectedRoute>
-              <ProfilePage />
-            </ProtectedRoute>
+            <AuthRouteGuard>
+              <AuthRoutes />
+            </AuthRouteGuard>
           }
         />
+        <Route path='/auth/callback' element={<GoogleCallback />} />
+
         <Route
-          path='/videos'
           element={
-            <ProtectedRoute>
-              <VideosPage />
-            </ProtectedRoute>
+            <ProtectedRouteGuard>
+              <AppLayout />
+            </ProtectedRouteGuard>
           }
-        />
-        <Route
-          path='/videos/:id'
-          element={
-            <ProtectedRoute>
-              <VideoDetailPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path='/timestamps/:videoId'
-          element={
-            <ProtectedRoute>
-              <TimestampsPage />
-            </ProtectedRoute>
-          }
-        />
+        >
+          <Route path='/dashboard' element={<DashboardPage />} />
+          <Route path='/profile' element={<ProfilePage />} />
+          <Route path='/videos' element={<VideosPage />} />
+          <Route path='/timestamps/:videoId' element={<TimestampsPage />} />
+        </Route>
+        <Route path='/error' element={<ErrorPage />} />
+        <Route path='*' element={<NotFoundPage />} />
       </Routes>
-      <NotificationSystem />
     </div>
   );
 };

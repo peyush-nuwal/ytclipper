@@ -1,26 +1,38 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"math"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/shubhamku044/ytclipper/internal/auth"
+	"github.com/shubhamku044/ytclipper/internal/config"
 	"github.com/shubhamku044/ytclipper/internal/database"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
 	"github.com/uptrace/bun"
 )
 
 type TimestampsHandlers struct {
-	db *database.Database
+	db             *database.Database
+	openaiAPIKey   *config.OpenAIConfig
+	embeddingModel string
 }
 
-func NewTimestampHandlers(db *database.Database) *TimestampsHandlers {
+func NewTimestampHandlers(db *database.Database, openaiAPIKey *config.OpenAIConfig) *TimestampsHandlers {
 	return &TimestampsHandlers{
-		db: db,
+		db:             db,
+		openaiAPIKey:   openaiAPIKey,
+		embeddingModel: openaiAPIKey.EmbeddingModel,
 	}
 }
 
@@ -32,6 +44,7 @@ type Timestamp struct {
 	Title     string    `json:"title"`
 	Note      string    `json:"note"`
 	Tags      []string  `json:"tags" bun:"tags,array"`
+	Embedding []float32 `json:"embedding" bun:"embedding,notnull"`
 	CreatedAt time.Time `json:"created_at" bun:"created_at,notnull"`
 	UpdatedAt time.Time `json:"updated_at" bun:"updated_at,notnull"`
 	DeletedAt time.Time `json:"-" bun:"deleted_at,soft_delete,nullzero"`
@@ -45,8 +58,131 @@ type CreateTimestampRequest struct {
 	Tags      []string `json:"tags"`
 }
 
+type SummaryRequest struct {
+	VideoID string `json:"video_id" binding:"required"`
+	Type    string `json:"type,omitempty"`
+}
+type SearchRequest struct {
+	Query   string `json:"query" binding:"required"`
+	VideoID string `json:"video_id,omitempty"`
+	Limit   int    `json:"limit,omitempty"`
+}
+
+type EmbeddingRequest struct {
+	Input          []string `json:"input"`
+	Model          string   `json:"model"`
+	EncodingFormat string   `json:"encoding_format,omitempty"`
+}
+
+type EmbeddingResponse struct {
+	Data []struct {
+		Embedding []float32 `json:"embedding"`
+		Index     int       `json:"index"`
+	} `json:"data"`
+}
+
+type ChatRequest struct {
+	Model    string `json:"model"`
+	Messages []struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	} `json:"messages"`
+	MaxTokens   int     `json:"max_tokens,omitempty"`
+	Temperature float64 `json:"temperature,omitempty"`
+}
+
+type ChatResponse struct {
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
+}
+
 type DeleteMultipleRequest struct {
 	IDs []string `json:"ids" binding:"required"`
+}
+
+func (t *TimestampsHandlers) generateEmbedding(text string) ([]float32, error) {
+	if text == "" {
+		return nil, fmt.Errorf("text cannot be empty")
+	}
+
+	reqBody := EmbeddingRequest{
+		Input:          []string{text},
+		Model:          t.embeddingModel,
+		EncodingFormat: "float",
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", "https://api.openai.com/v1/embeddings", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+t.openaiAPIKey.APIKey)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("OpenAI API error: status %d", resp.StatusCode)
+	}
+
+	var embeddingResp EmbeddingResponse
+	if err := json.NewDecoder(resp.Body).Decode(&embeddingResp); err != nil {
+		return nil, err
+	}
+
+	if len(embeddingResp.Data) == 0 {
+		return nil, fmt.Errorf("no embedding data received")
+	}
+
+	return embeddingResp.Data[0].Embedding, nil
+}
+
+func cosineSimilarity(a, b []float32) float32 {
+	if len(a) != len(b) {
+		return 0
+	}
+
+	var dotProduct, normA, normB float32
+	for i := range a {
+		dotProduct += a[i] * b[i]
+		normA += a[i] * a[i]
+		normB += b[i] * b[i]
+	}
+
+	if normA == 0 || normB == 0 {
+		return 0
+	}
+
+	return dotProduct / (float32(math.Sqrt(float64(normA))) * float32(math.Sqrt(float64(normB))))
+}
+
+func (t *TimestampsHandlers) createEmbeddingText(title, note string, tags []string) string {
+	var parts []string
+
+	if title != "" {
+		parts = append(parts, "Title: "+title)
+	}
+	if note != "" {
+		parts = append(parts, "Note: "+note)
+	}
+	if len(tags) > 0 {
+		parts = append(parts, "Tags: "+strings.Join(tags, ", "))
+	}
+
+	return strings.Join(parts, "\n")
 }
 
 func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
@@ -64,11 +200,21 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 		return
 	}
 
+	embeddingText := t.createEmbeddingText(req.Title, req.Note, req.Tags)
+	embedding, err := t.generateEmbedding(embeddingText)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "EMBEDDING_ERROR", "Failed to generate embedding", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
 	timestamp := Timestamp{
 		ID:        uuid.NewString(),
 		VideoID:   req.VideoID,
 		UserID:    userID,
 		Timestamp: req.Timestamp,
+		Embedding: embedding,
 		Title:     req.Title,
 		Note:      req.Note,
 		Tags:      req.Tags,
@@ -87,6 +233,493 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 
 	middleware.RespondWithOK(c, gin.H{
 		"timestamp": timestamp,
+	})
+}
+func (t *TimestampsHandlers) AnswerQuestion(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found", nil)
+		return
+	}
+
+	type QuestionRequest struct {
+		Question string `json:"question" binding:"required"`
+		VideoID  string `json:"video_id,omitempty"`
+		Context  int    `json:"context,omitempty"` // Number of relevant notes to include
+	}
+
+	var req QuestionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Search for relevant notes
+	searchReq := SearchRequest{
+		Query:   req.Question,
+		VideoID: req.VideoID,
+		Limit:   req.Context,
+	}
+	if searchReq.Limit == 0 {
+		searchReq.Limit = 5
+	}
+
+	// Generate embedding for the question
+	queryEmbedding, err := t.generateEmbedding(req.Question)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "EMBEDDING_ERROR", "Failed to generate question embedding", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Get relevant timestamps
+	query := t.db.DB.NewSelect().
+		Model((*Timestamp)(nil)).
+		Where("user_id = ? AND deleted_at IS NULL", userID)
+
+	if req.VideoID != "" {
+		query = query.Where("video_id = ?", req.VideoID)
+	}
+
+	var timestamps []Timestamp
+	err = query.Scan(context.Background(), &timestamps)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_READ_ERROR", "Failed to fetch timestamps", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Find most relevant notes
+	type ScoredTimestamp struct {
+		Timestamp Timestamp
+		Score     float32
+	}
+
+	var scoredResults []ScoredTimestamp
+	for _, ts := range timestamps {
+		if len(ts.Embedding) > 0 {
+			score := cosineSimilarity(queryEmbedding, ts.Embedding)
+			scoredResults = append(scoredResults, ScoredTimestamp{
+				Timestamp: ts,
+				Score:     score,
+			})
+		}
+	}
+
+	sort.Slice(scoredResults, func(i, j int) bool {
+		return scoredResults[i].Score > scoredResults[j].Score
+	})
+
+	if len(scoredResults) > searchReq.Limit {
+		scoredResults = scoredResults[:searchReq.Limit]
+	}
+
+	// Build context from relevant markdown notes
+	var context strings.Builder
+	context.WriteString("# Relevant Video Notes\n\n")
+
+	for i, scored := range scoredResults {
+		ts := scored.Timestamp
+		context.WriteString(fmt.Sprintf("## Note %d (Timestamp: %.2f seconds, Relevance: %.3f)\n\n", i+1, ts.Timestamp, scored.Score))
+		if ts.Title != "" {
+			context.WriteString(fmt.Sprintf("**Title:** %s\n\n", ts.Title))
+		}
+		if ts.Note != "" {
+			context.WriteString(fmt.Sprintf("**Content:**\n%s\n\n", ts.Note))
+		}
+		if len(ts.Tags) > 0 {
+			context.WriteString(fmt.Sprintf("**Tags:** %s\n\n", strings.Join(ts.Tags, ", ")))
+		}
+		context.WriteString("---\n\n")
+	}
+
+	// Generate answer with markdown-aware prompt
+	prompt := fmt.Sprintf(`Based on the following video notes (written in markdown format), please answer this question: "%s"
+
+%s
+
+Please provide a comprehensive answer based on the markdown content above. If the notes don't contain enough information to answer the question, please say so clearly. You can reference specific timestamps in your answer.`,
+		req.Question, context.String())
+
+	answer, err := t.generateTextCompletion(prompt)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "AI_ERROR", "Failed to generate answer", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Prepare relevant notes for response
+	var relevantNotes []gin.H
+	for _, scored := range scoredResults {
+		ts := scored.Timestamp
+		relevantNotes = append(relevantNotes, gin.H{
+			"id":        ts.ID,
+			"timestamp": ts.Timestamp,
+			"title":     ts.Title,
+			"note":      ts.Note,
+			"tags":      ts.Tags,
+			"score":     scored.Score,
+		})
+	}
+
+	middleware.RespondWithOK(c, gin.H{
+		"answer":         answer,
+		"question":       req.Question,
+		"relevant_notes": relevantNotes,
+		"context_count":  len(relevantNotes),
+		"generated_at":   time.Now().UTC(),
+	})
+}
+
+func (t *TimestampsHandlers) generateTextCompletion(prompt string) (string, error) {
+	reqBody := ChatRequest{
+		Model: "gpt-3.5-turbo",
+		Messages: []struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		}{
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		MaxTokens:   1000,
+		Temperature: 0.7,
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+t.openaiAPIKey.APIKey)
+
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("OpenAI API error: status %d", resp.StatusCode)
+	}
+
+	var chatResp ChatResponse
+	if err := json.NewDecoder(resp.Body).Decode(&chatResp); err != nil {
+		return "", err
+	}
+
+	if len(chatResp.Choices) == 0 {
+		return "", fmt.Errorf("no response from AI")
+	}
+
+	return chatResp.Choices[0].Message.Content, nil
+}
+
+func (t *TimestampsHandlers) GenerateSummary(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found", nil)
+		return
+	}
+
+	var req SummaryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Get all timestamps for the video
+	var timestamps []Timestamp
+	err := t.db.DB.NewSelect().
+		Model(&timestamps).
+		Where("user_id = ? AND video_id = ? AND deleted_at IS NULL", userID, req.VideoID).
+		Order("timestamp ASC").
+		Scan(context.Background())
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_READ_ERROR", "Failed to fetch timestamps", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	if len(timestamps) == 0 {
+		middleware.RespondWithError(c, http.StatusNotFound, "NO_TIMESTAMPS", "No timestamps found for this video", nil)
+		return
+	}
+
+	var content strings.Builder
+	content.WriteString("Video Notes Summary Request\n\n")
+
+	for _, ts := range timestamps {
+		content.WriteString(fmt.Sprintf("## Timestamp: %.2f seconds\n", ts.Timestamp))
+		if ts.Title != "" {
+			content.WriteString(fmt.Sprintf("**Title:** %s\n\n", ts.Title))
+		}
+		if ts.Note != "" {
+			content.WriteString(fmt.Sprintf("**Content:**\n%s\n\n", ts.Note))
+		}
+		if len(ts.Tags) > 0 {
+			content.WriteString(fmt.Sprintf("**Tags:** %s\n\n", strings.Join(ts.Tags, ", ")))
+		}
+		content.WriteString("---\n\n")
+	}
+
+	// Determine summary style
+	summaryType := req.Type
+	if summaryType == "" {
+		summaryType = "brief"
+	}
+
+	var prompt string
+	switch summaryType {
+	case "detailed":
+		prompt = "Please provide a detailed summary of these video notes, organizing them by themes and topics. Include specific timestamps where relevant."
+	case "key_points":
+		prompt = "Please extract the key points and main takeaways from these video notes in a bullet-point format."
+	default: // brief
+		prompt = "Please provide a brief, concise summary of the main themes and topics covered in these video notes."
+	}
+
+	// Generate summary using OpenAI
+	summary, err := t.generateTextCompletion(prompt + "\n\n" + content.String())
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "AI_ERROR", "Failed to generate summary", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	middleware.RespondWithOK(c, gin.H{
+		"summary":      summary,
+		"video_id":     req.VideoID,
+		"type":         summaryType,
+		"note_count":   len(timestamps),
+		"generated_at": time.Now().UTC(),
+	})
+}
+
+func (t *TimestampsHandlers) SearchTimestamps(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found", nil)
+		return
+	}
+
+	var req SearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Generate embedding for search query
+	queryEmbedding, err := t.generateEmbedding(req.Query)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "EMBEDDING_ERROR", "Failed to generate query embedding", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Get all timestamps for the user (and optionally for specific video)
+	query := t.db.DB.NewSelect().
+		Model((*Timestamp)(nil)).
+		Where("user_id = ? AND deleted_at IS NULL", userID)
+
+	if req.VideoID != "" {
+		query = query.Where("video_id = ?", req.VideoID)
+	}
+
+	var timestamps []Timestamp
+	err = query.Scan(context.Background(), &timestamps)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_READ_ERROR", "Failed to fetch timestamps", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Calculate similarities and rank results
+	type ScoredTimestamp struct {
+		Timestamp Timestamp `json:"timestamp"`
+		Score     float32   `json:"score"`
+	}
+
+	var scoredResults []ScoredTimestamp
+	for _, ts := range timestamps {
+		if len(ts.Embedding) > 0 {
+			score := cosineSimilarity(queryEmbedding, ts.Embedding)
+			scoredResults = append(scoredResults, ScoredTimestamp{
+				Timestamp: ts,
+				Score:     score,
+			})
+		}
+	}
+
+	// Sort by score (highest first)
+	sort.Slice(scoredResults, func(i, j int) bool {
+		return scoredResults[i].Score > scoredResults[j].Score
+	})
+
+	// Apply limit
+	limit := req.Limit
+	if limit == 0 || limit > 50 {
+		limit = 10 // Default limit
+	}
+	if len(scoredResults) > limit {
+		scoredResults = scoredResults[:limit]
+	}
+
+	middleware.RespondWithOK(c, gin.H{
+		"results": scoredResults,
+		"query":   req.Query,
+		"count":   len(scoredResults),
+	})
+}
+func (t *TimestampsHandlers) BackfillEmbeddingsAsync(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found", nil)
+		return
+	}
+
+	go func() {
+		log.Printf("Starting async embedding backfill for user %s", userID)
+		t.processEmbeddingsBackground(userID)
+	}()
+
+	middleware.RespondWithOK(c, gin.H{
+		"message": "Embedding generation started in background",
+		"user_id": userID,
+	})
+}
+func (t *TimestampsHandlers) processEmbeddingsBackground(userID string) {
+	ctx := context.Background()
+	batchSize := 5 // Smaller batches for background processing
+
+	// Find timestamps without embeddings
+	var timestamps []Timestamp
+	err := t.db.DB.NewSelect().
+		Model(&timestamps).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Where("embedding IS NULL").
+		Scan(ctx)
+
+	if err != nil {
+		log.Printf("Error fetching timestamps for background processing: %v", err)
+		return
+	}
+
+	log.Printf("Found %d timestamps needing embeddings for user %s", len(timestamps), userID)
+
+	processed := 0
+	for i := 0; i < len(timestamps); i += batchSize {
+		end := i + batchSize
+		if end > len(timestamps) {
+			end = len(timestamps)
+		}
+
+		batch := timestamps[i:end]
+
+		for _, ts := range batch {
+			embeddingText := t.createEmbeddingText(ts.Title, ts.Note, ts.Tags)
+			if embeddingText == "" {
+				continue
+			}
+
+			embedding, err := t.generateEmbedding(embeddingText)
+			if err != nil {
+				log.Printf("Failed to generate embedding for timestamp %s: %v", ts.ID, err)
+				time.Sleep(5 * time.Second) // Wait longer on error
+				continue
+			}
+
+			_, err = t.db.DB.NewUpdate().
+				Model((*Timestamp)(nil)).
+				Set("embedding = ?", embedding).
+				Set("updated_at = ?", time.Now().UTC()).
+				Where("id = ?", ts.ID).
+				Exec(ctx)
+
+			if err != nil {
+				log.Printf("Failed to update timestamp %s: %v", ts.ID, err)
+				continue
+			}
+
+			processed++
+		}
+
+		// Rate limiting between batches
+		time.Sleep(2 * time.Second)
+		log.Printf("Processed %d/%d timestamps for user %s", processed, len(timestamps), userID)
+	}
+
+	log.Printf("Completed embedding backfill for user %s: %d/%d processed", userID, processed, len(timestamps))
+}
+func (t *TimestampsHandlers) GetEmbeddingStatus(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found", nil)
+		return
+	}
+
+	ctx := context.Background()
+
+	// Count total timestamps
+	totalCount, err := t.db.DB.NewSelect().
+		Model((*Timestamp)(nil)).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Count(ctx)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_READ_ERROR", "Failed to count total timestamps", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Count timestamps with embeddings
+	withEmbeddingsCount, err := t.db.DB.NewSelect().
+		Model((*Timestamp)(nil)).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Where("embedding IS NOT NULL").
+		Count(ctx)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_READ_ERROR", "Failed to count timestamps with embeddings", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	withoutEmbeddingsCount := totalCount - withEmbeddingsCount
+
+	completionPercentage := float64(0)
+	if totalCount > 0 {
+		completionPercentage = float64(withEmbeddingsCount) / float64(totalCount) * 100
+	}
+
+	middleware.RespondWithOK(c, gin.H{
+		"total_timestamps":      totalCount,
+		"with_embeddings":       withEmbeddingsCount,
+		"without_embeddings":    withoutEmbeddingsCount,
+		"completion_percentage": completionPercentage,
+		"needs_backfill":        withoutEmbeddingsCount > 0,
+		"estimated_cost_usd":    float64(withoutEmbeddingsCount) * 0.00002, // Rough estimate
 	})
 }
 
