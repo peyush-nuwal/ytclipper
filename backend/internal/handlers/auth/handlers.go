@@ -15,16 +15,14 @@ import (
 )
 
 type AuthHandlers struct {
-	googleService  *GoogleOAuthService
 	authMiddleware *AuthMiddleware
 	jwtService     *JWTService
 	emailService   *EmailService
 	db             *database.Database
 }
 
-func NewAuthHandlers(googleService *GoogleOAuthService, authMiddleware *AuthMiddleware, jwtService *JWTService, emailService *EmailService, db *database.Database) *AuthHandlers {
+func NewAuthHandlers(authMiddleware *AuthMiddleware, jwtService *JWTService, emailService *EmailService, db *database.Database) *AuthHandlers {
 	return &AuthHandlers{
-		googleService:  googleService,
 		authMiddleware: authMiddleware,
 		jwtService:     jwtService,
 		emailService:   emailService,
@@ -64,11 +62,6 @@ func (h *AuthHandlers) GetCurrentUserHandler() gin.HandlerFunc {
 		if user.Password != "" {
 			authMethods = append(authMethods, "password")
 		}
-
-		// primaryProvider := "password"
-		// if user.Provider != nil {
-		// primaryProvider = *user.Provider
-		// }
 
 		accessToken, err1 := c.Cookie("access_token")
 		refreshToken, err2 := c.Cookie("refresh_token")
@@ -140,64 +133,6 @@ func (h *AuthHandlers) RefreshTokenHandler() gin.HandlerFunc {
 		// Return new tokens
 		middleware.RespondWithOK(c, tokenPair)
 	}
-}
-
-func (h *AuthHandlers) SetupAuthRoutes(r *gin.Engine) {
-	v1 := r.Group("/api/v1")
-
-	auth := v1.Group("/auth")
-	{
-		auth.GET("/google/login", h.googleService.LoginHandler())
-		auth.GET("/google/callback", h.googleService.CallbackHandler())
-
-		auth.POST("/register", h.RegisterHandler)
-		auth.POST("/login", h.LoginHandler)
-		auth.POST("/forgot-password", h.ForgotPasswordHandler)
-		auth.POST("/reset-password", h.ResetPasswordHandler)
-		auth.POST("/verify-email", h.VerifyEmailHandler)
-		auth.GET("/status", h.authMiddleware.RequireAuth(), h.AuthStatusHandler)
-
-		auth.POST("/add-password", h.authMiddleware.RequireAuth(), h.AddPasswordHandler)
-
-		auth.POST("/logout", h.googleService.LogoutHandler())
-		auth.POST("/refresh", h.RefreshTokenHandler())
-
-		auth.GET("/token", h.authMiddleware.RequireAuth(), h.GetAccessToken())
-	}
-}
-
-// RegisterRequest represents the registration request payload
-type RegisterRequest struct {
-	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
-}
-
-// LoginRequest represents the login request payload
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-}
-
-// ForgotPasswordRequest represents the forgot password request payload
-type ForgotPasswordRequest struct {
-	Email string `json:"email" binding:"required,email"`
-}
-
-// ResetPasswordRequest represents the reset password request payload
-type ResetPasswordRequest struct {
-	Token    string `json:"token" binding:"required"`
-	Password string `json:"password" binding:"required,min=8"`
-}
-
-// VerifyEmailRequest represents the email verification request payload
-type VerifyEmailRequest struct {
-	Token string `json:"token" binding:"required"`
-}
-
-// AddPasswordRequest represents the request to add password authentication
-type AddPasswordRequest struct {
-	Password string `json:"password" binding:"required,min=8"`
 }
 
 func (h *AuthHandlers) RegisterHandler(c *gin.Context) {
@@ -279,7 +214,9 @@ func (h *AuthHandlers) LoginHandler(c *gin.Context) {
 		Where("email = ?", req.Email).
 		Scan(ctx)
 	if err != nil {
-		middleware.RespondWithError(c, 404, "USER_NOT_FOUND", "user not found", nil)
+		middleware.RespondWithError(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found", gin.H{
+			"email": req.Email,
+		})
 		return
 	}
 
@@ -289,24 +226,19 @@ func (h *AuthHandlers) LoginHandler(c *gin.Context) {
 	}
 
 	if err = CheckPassword(req.Password, user.Password); err != nil {
-		middleware.RespondWithError(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid credentials", nil)
+		middleware.RespondWithError(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid credentials", gin.H{
+			"email": req.Email,
+		})
 		return
 	}
 
-	/* Skip this for now
-	if !user.EmailVerified {
-		middleware.RespondWithError(c, http.StatusUnauthorized, "EMAIL_NOT_VERIFIED", "Please verify your email before logging in", nil)
-		return
-	}
-	*/
-
-	accessToken, accessTokenExpiry, err := h.jwtService.GenerateAccessToken(user.ID)
+	accessToken, accessTokenExpiry, err := h.jwtService.GenerateAccessToken(user.ID.String())
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "TOKEN_GENERATION_ERROR", "Failed to generate access token", nil)
 		return
 	}
 
-	refreshToken, refreshTokenExpiry, err := h.jwtService.GenerateRefreshToken(user.ID)
+	refreshToken, refreshTokenExpiry, err := h.jwtService.GenerateRefreshToken(user.ID.String())
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "TOKEN_GENERATION_ERROR", "Failed to generate refresh token", nil)
 		return
@@ -471,7 +403,82 @@ func (h *AuthHandlers) VerifyEmailHandler(c *gin.Context) {
 }
 
 func (h *AuthHandlers) AuthStatusHandler(c *gin.Context) {
-	c.Status(http.StatusNoContent)
+	// Get current user info
+	user, exists := GetUser(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NOT_AUTHENTICATED", "User not authenticated", nil)
+		return
+	}
+
+	// Get token info
+	accessToken, _ := c.Cookie("access_token")
+	refreshToken, _ := c.Cookie("refresh_token")
+
+	// Try to validate the access token
+	var tokenValid bool
+	var tokenError string
+	if accessToken != "" {
+		_, err := h.jwtService.ValidateToken(accessToken)
+		tokenValid = err == nil
+		if err != nil {
+			tokenError = err.Error()
+		}
+	}
+
+	middleware.RespondWithOK(c, gin.H{
+		"user":          user,
+		"token_valid":   tokenValid,
+		"token_error":   tokenError,
+		"refresh_token": refreshToken,
+	})
+}
+
+// DebugUserHandler helps debug user authentication issues
+func (h *AuthHandlers) DebugUserHandler(c *gin.Context) {
+	email := c.Query("email")
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error": gin.H{
+				"code":    "MISSING_EMAIL",
+				"message": "Email parameter is required",
+			},
+		})
+		return
+	}
+
+	ctx := context.Background()
+	var user models.User
+	err := h.db.DB.NewSelect().
+		Model(&user).
+		Where("email = ?", email).
+		Scan(ctx)
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error": gin.H{
+				"code":    "USER_NOT_FOUND",
+				"message": "User not found in database",
+				"details": err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"user": gin.H{
+			"id":             user.ID.String(),
+			"email":          user.Email,
+			"name":           user.Name,
+			"has_password":   user.Password != "",
+			"has_google_id":  user.GoogleID != "",
+			"email_verified": user.EmailVerified,
+			"created_at":     user.CreatedAt,
+			"updated_at":     user.UpdatedAt,
+		},
+	})
 }
 
 // AddPasswordHandler allows users to add password authentication to their Google-only accounts

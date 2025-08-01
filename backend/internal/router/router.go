@@ -7,10 +7,12 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/shubhamku044/ytclipper/internal/auth"
+
 	"github.com/shubhamku044/ytclipper/internal/config"
 	"github.com/shubhamku044/ytclipper/internal/database"
 	"github.com/shubhamku044/ytclipper/internal/handlers"
+	authhandlers "github.com/shubhamku044/ytclipper/internal/handlers/auth"
+	"github.com/shubhamku044/ytclipper/internal/handlers/timestamps"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
 )
 
@@ -39,12 +41,12 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 	r.Use(middleware.ResponseFormatter())
 	r.Use(middleware.RequestLogger())
 
-	jwtService := auth.NewJWTService(&cfg.JWT, &cfg.Auth, db)
-	emailService := auth.NewEmailService()
-	googleService := auth.NewGoogleOAuthService(&cfg.Google, &cfg.Auth, jwtService, db, &cfg.Server)
-	authMiddleware := auth.NewAuthMiddleware(jwtService, &cfg.Auth, db)
-	authHandlers := auth.NewAuthHandlers(googleService, authMiddleware, jwtService, emailService, db)
-	timestampHandlers := handlers.NewTimestampHandlers(db, &cfg.OpenAI)
+	jwtService := authhandlers.NewJWTService(&cfg.JWT, &cfg.Auth, db)
+	emailService := authhandlers.NewEmailService()
+	authMiddleware := authhandlers.NewAuthMiddleware(jwtService, &cfg.Auth, db)
+	authHandlers := authhandlers.NewAuthHandlers(authMiddleware, jwtService, emailService, db)
+	oauthHandlers := authhandlers.NewOAuthHandlers(&cfg.Google, &cfg.Auth, jwtService, db, &cfg.Server)
+	timestampHandlers := timestamps.NewTimestampsHandlers(db, &cfg.OpenAI)
 
 	r.NoRoute(func(c *gin.Context) {
 		middleware.RespondWithError(c, http.StatusNotFound, "NOT_FOUND", "The requested resource could not be found", gin.H{
@@ -55,7 +57,7 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 	r.GET("/health", handlers.HealthCheck)
 	r.GET("/db-health", handlers.DBHealthCheck(db))
 
-	authHandlers.SetupAuthRoutes(r)
+	authhandlers.SetupAuthRoutes(r, authHandlers, oauthHandlers, authMiddleware)
 
 	r.GET("/", func(c *gin.Context) {
 		middleware.RespondWithOK(c, gin.H{
@@ -90,20 +92,10 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 		v1.GET("/health", handlers.HealthCheck)
 		v1.GET("/db-health", handlers.DBHealthCheck(db))
 
-		authRoutes := v1.Group("/auth")
-		{
-			authRoutes.GET("/user", authHandlers.GetCurrentUserHandler())
-			authRoutes.GET("/me", authMiddleware.RequireAuth(), authHandlers.GetCurrentUserHandler())
-			authRoutes.GET("/session", authMiddleware.RequireAuth(), handlers.GetSession)
-			authRoutes.POST("/verify", authMiddleware.RequireAuth(), handlers.VerifyToken)
-			authRoutes.GET("/profile", authMiddleware.RequireAuth(), handlers.GetUserProfile)
-		}
-
+		// Timestamp routes
 		protected := v1.Group("")
 		protected.Use(authMiddleware.RequireAuth())
 		{
-			protected.GET("/profile", handlers.GetUserProfile)
-
 			timestampRoutes := protected.Group("/timestamps")
 			{
 				timestampRoutes.POST("", timestampHandlers.CreateTimestamp)

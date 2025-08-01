@@ -110,6 +110,26 @@ func (d *Database) RunInTransaction(ctx context.Context, fn func(ctx context.Con
 	return d.DB.RunInTx(ctx, nil, fn)
 }
 
+// Transaction-aware CRUD operations
+func (d *Database) CreateWithTx(ctx context.Context, tx bun.Tx, model interface{}) error {
+	_, err := tx.NewInsert().Model(model).Exec(ctx)
+	return err
+}
+
+func (d *Database) FindWithTx(ctx context.Context, tx bun.Tx, model interface{}, id interface{}) error {
+	return tx.NewSelect().Model(model).Where("id = ?", id).Scan(ctx)
+}
+
+func (d *Database) UpdateWithTx(ctx context.Context, tx bun.Tx, model interface{}) error {
+	_, err := tx.NewUpdate().Model(model).WherePK().Exec(ctx)
+	return err
+}
+
+func (d *Database) DeleteWithTx(ctx context.Context, tx bun.Tx, model interface{}) error {
+	_, err := tx.NewDelete().Model(model).WherePK().Exec(ctx)
+	return err
+}
+
 // Basic CRUD operations
 func (d *Database) Create(ctx context.Context, model interface{}) error {
 	_, err := d.DB.NewInsert().Model(model).Exec(ctx)
