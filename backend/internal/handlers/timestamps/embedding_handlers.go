@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,6 @@ import (
 	"github.com/shubhamku044/ytclipper/internal/models"
 )
 
-// BackfillEmbeddingsAsync starts background embedding generation
 func (t *TimestampsHandlers) BackfillEmbeddingsAsync(c *gin.Context) {
 	userIDStr, exists := authhandlers.GetUserID(c)
 	if !exists {
@@ -21,7 +21,6 @@ func (t *TimestampsHandlers) BackfillEmbeddingsAsync(c *gin.Context) {
 		return
 	}
 
-	// Convert string user ID to UUID
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
@@ -41,19 +40,16 @@ func (t *TimestampsHandlers) BackfillEmbeddingsAsync(c *gin.Context) {
 	})
 }
 
-// processEmbeddingsBackground processes embeddings in the background
 func (t *TimestampsHandlers) processEmbeddingsBackground(userID string) {
 	ctx := context.Background()
-	batchSize := 5 // Smaller batches for background processing
+	batchSize := 5
 
-	// Convert string user ID to UUID
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		log.Printf("Error parsing user ID for background processing: %v", err)
 		return
 	}
 
-	// Find timestamps without embeddings
 	var timestamps []models.Timestamp
 	err = t.db.DB.NewSelect().
 		Model(&timestamps).
@@ -90,7 +86,7 @@ func (t *TimestampsHandlers) processEmbeddingsBackground(userID string) {
 			embedding, err := t.aiService.GenerateEmbedding(embeddingText)
 			if err != nil {
 				log.Printf("Failed to generate embedding for timestamp %s: %v", ts.ID, err)
-				time.Sleep(5 * time.Second) // Wait longer on error
+				time.Sleep(5 * time.Second)
 				continue
 			}
 
@@ -109,7 +105,6 @@ func (t *TimestampsHandlers) processEmbeddingsBackground(userID string) {
 			processed++
 		}
 
-		// Rate limiting between batches
 		time.Sleep(2 * time.Second)
 		log.Printf("Processed %d/%d timestamps for user %s", processed, len(timestamps), userID)
 	}
@@ -117,7 +112,6 @@ func (t *TimestampsHandlers) processEmbeddingsBackground(userID string) {
 	log.Printf("Completed embedding backfill for user %s: %d/%d processed", userID, processed, len(timestamps))
 }
 
-// GetEmbeddingStatus returns the status of embeddings for the current user
 func (t *TimestampsHandlers) GetEmbeddingStatus(c *gin.Context) {
 	userIDStr, exists := authhandlers.GetUserID(c)
 	if !exists {
@@ -125,7 +119,6 @@ func (t *TimestampsHandlers) GetEmbeddingStatus(c *gin.Context) {
 		return
 	}
 
-	// Convert string user ID to UUID
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
@@ -136,7 +129,6 @@ func (t *TimestampsHandlers) GetEmbeddingStatus(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// Count total timestamps
 	totalCount, err := t.db.DB.NewSelect().
 		Model((*models.Timestamp)(nil)).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
@@ -148,7 +140,6 @@ func (t *TimestampsHandlers) GetEmbeddingStatus(c *gin.Context) {
 		return
 	}
 
-	// Count timestamps with embeddings
 	withEmbeddingsCount, err := t.db.DB.NewSelect().
 		Model((*models.Timestamp)(nil)).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
@@ -174,6 +165,53 @@ func (t *TimestampsHandlers) GetEmbeddingStatus(c *gin.Context) {
 		"without_embeddings":    withoutEmbeddingsCount,
 		"completion_percentage": completionPercentage,
 		"needs_backfill":        withoutEmbeddingsCount > 0,
-		"estimated_cost_usd":    float64(withoutEmbeddingsCount) * 0.00002, // Rough estimate
+		"estimated_cost_usd":    float64(withoutEmbeddingsCount) * 0.00002,
+	})
+}
+
+func (t *TimestampsHandlers) ProcessMissingEmbeddingsForUser(c *gin.Context) {
+	userIDStr, exists := authhandlers.GetUserID(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found", nil)
+		return
+	}
+
+	batchSize := 10
+	if param := c.Query("batch_size"); param != "" {
+		if parsed, err := strconv.Atoi(param); err == nil && parsed > 0 && parsed <= 50 {
+			batchSize = parsed
+		}
+	}
+
+	go func() {
+		if err := t.aiService.ProcessMissingEmbeddingsForUser(userIDStr, batchSize); err != nil {
+			log.Printf("Failed to process missing embeddings for user %s: %v", userIDStr, err)
+		}
+	}()
+
+	middleware.RespondWithOK(c, gin.H{
+		"message":    "Processing missing embeddings in background",
+		"user_id":    userIDStr,
+		"batch_size": batchSize,
+	})
+}
+
+func (t *TimestampsHandlers) ProcessAllMissingEmbeddings(c *gin.Context) {
+	batchSize := 20
+	if param := c.Query("batch_size"); param != "" {
+		if parsed, err := strconv.Atoi(param); err == nil && parsed > 0 && parsed <= 100 {
+			batchSize = parsed
+		}
+	}
+
+	go func() {
+		if err := t.aiService.ProcessAllMissingEmbeddings(batchSize); err != nil {
+			log.Printf("Failed to process all missing embeddings: %v", err)
+		}
+	}()
+
+	middleware.RespondWithOK(c, gin.H{
+		"message":    "Processing all missing embeddings in background",
+		"batch_size": batchSize,
 	})
 }

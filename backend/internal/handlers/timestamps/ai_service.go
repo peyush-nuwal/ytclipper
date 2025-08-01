@@ -2,24 +2,30 @@ package timestamps
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shubhamku044/ytclipper/internal/config"
+	"github.com/shubhamku044/ytclipper/internal/database"
+	"github.com/shubhamku044/ytclipper/internal/models"
 )
 
 type AIService struct {
 	openaiAPIKey   *config.OpenAIConfig
 	embeddingModel string
+	db             *database.Database
 }
 
-func NewAIService(openaiAPIKey *config.OpenAIConfig) *AIService {
+func NewAIService(openaiAPIKey *config.OpenAIConfig, db *database.Database) *AIService {
 	return &AIService{
 		openaiAPIKey:   openaiAPIKey,
 		embeddingModel: openaiAPIKey.EmbeddingModel,
+		db:             db,
 	}
 }
 
@@ -136,4 +142,96 @@ func (ai *AIService) CreateEmbeddingText(title, note string, tags []string) stri
 	}
 
 	return strings.Join(parts, "\n")
+}
+
+func (ai *AIService) ProcessEmbeddingForTimestamp(timestampID string) error {
+	ctx := context.Background()
+
+	var timestamp models.Timestamp
+	err := ai.db.DB.NewSelect().
+		Model(&timestamp).
+		Where("id = ?", timestampID).
+		Scan(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch timestamp: %w", err)
+	}
+
+	var tagNames []string
+	for _, tag := range timestamp.Tags {
+		tagNames = append(tagNames, tag.Name)
+	}
+
+	embeddingText := ai.CreateEmbeddingText(timestamp.Title, timestamp.Note, tagNames)
+	if embeddingText == "" {
+		return fmt.Errorf("no content to embed for timestamp %s", timestampID)
+	}
+
+	embedding, err := ai.GenerateEmbedding(embeddingText)
+	if err != nil {
+		return fmt.Errorf("failed to generate embedding: %w", err)
+	}
+
+	_, err = ai.db.DB.NewUpdate().
+		Model((*models.Timestamp)(nil)).
+		Set("embedding = ?", embedding).
+		Set("updated_at = ?", time.Now().UTC()).
+		Where("id = ?", timestampID).
+		Exec(ctx)
+
+	return err
+}
+
+func (ai *AIService) ProcessMissingEmbeddingsForUser(userID string, batchSize int) error {
+	ctx := context.Background()
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	var timestamps []models.Timestamp
+	err = ai.db.DB.NewSelect().
+		Model(&timestamps).
+		Where("user_id = ? AND deleted_at IS NULL AND embedding IS NULL", userUUID).
+		Limit(batchSize).
+		Scan(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch timestamps: %w", err)
+	}
+
+	processed := 0
+	for _, ts := range timestamps {
+		if err := ai.ProcessEmbeddingForTimestamp(ts.ID.String()); err != nil {
+			continue
+		}
+		processed++
+		time.Sleep(1 * time.Second) // Rate limiting
+	}
+
+	return nil
+}
+
+func (ai *AIService) ProcessAllMissingEmbeddings(batchSize int) error {
+	ctx := context.Background()
+
+	var timestamps []models.Timestamp
+	err := ai.db.DB.NewSelect().
+		Model(&timestamps).
+		Where("deleted_at IS NULL AND embedding IS NULL").
+		Limit(batchSize).
+		Scan(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch timestamps: %w", err)
+	}
+
+	processed := 0
+	for _, ts := range timestamps {
+		if err := ai.ProcessEmbeddingForTimestamp(ts.ID.String()); err != nil {
+			continue
+		}
+		processed++
+		time.Sleep(1 * time.Second) // Rate limiting
+	}
+
+	return nil
 }

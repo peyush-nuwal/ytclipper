@@ -41,7 +41,6 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			return
 		}
 
-		// Get user from database
 		var user models.User
 		err = m.db.DB.NewSelect().
 			Model(&user).
@@ -53,7 +52,6 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			return
 		}
 
-		// Set user in Gin's context
 		c.Set("user", user)
 		c.Set("claims", claims)
 
@@ -62,7 +60,6 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 }
 
 func (m *AuthMiddleware) extractToken(c *gin.Context) (string, error) {
-	// Try to get token from Authorization header
 	authHeader := c.GetHeader("Authorization")
 	if authHeader != "" {
 		parts := strings.Split(authHeader, " ")
@@ -71,7 +68,6 @@ func (m *AuthMiddleware) extractToken(c *gin.Context) (string, error) {
 		}
 	}
 
-	// Try to get token from cookie
 	token, err := c.Cookie("access_token")
 	if err != nil {
 		return "", err
@@ -80,7 +76,6 @@ func (m *AuthMiddleware) extractToken(c *gin.Context) (string, error) {
 	return token, nil
 }
 
-// GetUser retrieves the user from the context
 func GetUser(c *gin.Context) (*models.User, bool) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -94,7 +89,6 @@ func GetUser(c *gin.Context) (*models.User, bool) {
 	return nil, false
 }
 
-// GetUserID retrieves the user ID from the context
 func GetUserID(c *gin.Context) (string, bool) {
 	user, exists := GetUser(c)
 	if !exists {
@@ -103,7 +97,6 @@ func GetUserID(c *gin.Context) (string, bool) {
 	return user.ID.String(), true
 }
 
-// GetClaims retrieves the JWT claims from the context
 func GetClaims(c *gin.Context) (*Claims, bool) {
 	claims, exists := c.Get("claims")
 	if !exists {

@@ -12,15 +12,11 @@ import (
 	"github.com/shubhamku044/ytclipper/internal/router"
 )
 
-// runGooseMigrations runs database migrations using Goose
 func runGooseMigrations(ctx context.Context, db *database.Database) error {
-	// Get the underlying *sql.DB from Bun
 	sqlDB := db.DB.DB
 
-	// Set the migration directory
-	goose.SetBaseFS(nil) // Use filesystem
+	goose.SetBaseFS(nil)
 
-	// Run migrations
 	if err := goose.Up(sqlDB, "migrations"); err != nil {
 		return err
 	}
@@ -40,7 +36,6 @@ func NewServer(cfg *config.Config) *Server {
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to connect to database, continuing without database connection")
 	} else {
-		// Run database migrations
 		ctx := context.Background()
 		if err := runGooseMigrations(ctx, db); err != nil {
 			log.Error().Err(err).Msg("Failed to run database migrations")
@@ -49,7 +44,6 @@ func NewServer(cfg *config.Config) *Server {
 		}
 	}
 
-	// Set Gin mode based on environment
 	if cfg.Server.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	} else if cfg.Server.Env == "test" {
@@ -58,7 +52,6 @@ func NewServer(cfg *config.Config) *Server {
 		gin.SetMode(gin.DebugMode)
 	}
 
-	// Use the router from the router package
 	r := router.SetupRouter(db, cfg)
 
 	srv := &Server{

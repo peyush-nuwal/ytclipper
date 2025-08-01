@@ -40,7 +40,10 @@ func (h *OAuthHandlers) LoginHandler() gin.HandlerFunc {
 			h.googleConfig.ClientID,
 			h.googleConfig.RedirectURL,
 		)
-		c.Redirect(http.StatusTemporaryRedirect, redirectURL)
+
+		middleware.RespondWithOK(c, gin.H{
+			"auth_url": redirectURL,
+		})
 	}
 }
 
@@ -52,7 +55,6 @@ func (h *OAuthHandlers) CallbackHandler() gin.HandlerFunc {
 			return
 		}
 
-		// Exchange code for access token
 		tokenURL := "https://oauth2.googleapis.com/token"
 		tokenData := map[string]string{
 			"client_id":     h.googleConfig.ClientID,
@@ -84,7 +86,6 @@ func (h *OAuthHandlers) CallbackHandler() gin.HandlerFunc {
 			return
 		}
 
-		// Get user info from Google
 		userInfoURL := "https://www.googleapis.com/oauth2/v2/userinfo"
 		req, err := http.NewRequest("GET", userInfoURL, nil)
 		if err != nil {
@@ -110,7 +111,6 @@ func (h *OAuthHandlers) CallbackHandler() gin.HandlerFunc {
 			return
 		}
 
-		// Find or create user
 		ctx := context.Background()
 		var user models.User
 		err = h.db.DB.NewSelect().
@@ -119,7 +119,6 @@ func (h *OAuthHandlers) CallbackHandler() gin.HandlerFunc {
 			Scan(ctx)
 
 		if err != nil {
-			// User doesn't exist, create new user
 			user = models.User{
 				Email:         googleUser.Email,
 				Name:          googleUser.Name,
@@ -135,7 +134,6 @@ func (h *OAuthHandlers) CallbackHandler() gin.HandlerFunc {
 				return
 			}
 		} else {
-			// User exists, update Google ID if not set
 			if user.GoogleID == "" {
 				user.GoogleID = googleUser.ID
 				user.UpdatedAt = time.Now().UTC()
@@ -145,7 +143,6 @@ func (h *OAuthHandlers) CallbackHandler() gin.HandlerFunc {
 			}
 		}
 
-		// Generate JWT tokens
 		accessTokenJWT, _, err := h.jwtService.GenerateAccessToken(user.ID.String())
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to generate access token")
@@ -160,23 +157,20 @@ func (h *OAuthHandlers) CallbackHandler() gin.HandlerFunc {
 			return
 		}
 
-		// Set cookies
 		h.jwtService.SetTokenCookies(c, accessTokenJWT, refreshTokenJWT)
 
-		// Redirect to frontend with success
-		frontendURL := "http://localhost:5173" // Default frontend URL
+		frontendURL := "http://localhost:5173"
 		if h.serverConfig.Env == "production" {
 			frontendURL = "https://app.ytclipper.com"
 		}
 
-		redirectURL := fmt.Sprintf("%s?auth=success&user=%s", frontendURL, user.Email)
+		redirectURL := fmt.Sprintf("%s/auth/callback?auth=success&user=%s", frontendURL, user.Email)
 		c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 	}
 }
 
 func (h *OAuthHandlers) LogoutHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Clear cookies
 		c.SetCookie("access_token", "", -1, "/", "", false, true)
 		c.SetCookie("refresh_token", "", -1, "/", "", false, true)
 

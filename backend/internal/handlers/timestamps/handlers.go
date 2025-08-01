@@ -25,12 +25,11 @@ type TimestampsHandlers struct {
 func NewTimestampsHandlers(db *database.Database, openaiAPIKey *config.OpenAIConfig) *TimestampsHandlers {
 	return &TimestampsHandlers{
 		db:         db,
-		aiService:  NewAIService(openaiAPIKey),
+		aiService:  NewAIService(openaiAPIKey, db),
 		tagService: NewTagService(db),
 	}
 }
 
-// GetAllTags returns all tags for the current user
 func (t *TimestampsHandlers) GetAllTags(c *gin.Context) {
 	userID, exists := authhandlers.GetUserID(c)
 	if !exists {
@@ -38,7 +37,7 @@ func (t *TimestampsHandlers) GetAllTags(c *gin.Context) {
 		return
 	}
 
-	limit := 100 // Default limit for all tags
+	limit := 100
 	if param := c.Query("limit"); param != "" {
 		if parsed, err := strconv.Atoi(param); err == nil && parsed > 0 && parsed <= 500 {
 			limit = parsed
@@ -58,7 +57,6 @@ func (t *TimestampsHandlers) GetAllTags(c *gin.Context) {
 	})
 }
 
-// SearchTags searches for tags matching a query
 func (t *TimestampsHandlers) SearchTags(c *gin.Context) {
 	var req TagSearchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -99,7 +97,6 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 		return
 	}
 
-	// Convert string user ID to UUID
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
@@ -118,7 +115,6 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// Start database transaction
 	tx, err := t.db.DB.BeginTx(ctx, nil)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_TRANSACTION_ERROR", "Failed to start database transaction", gin.H{
@@ -126,16 +122,14 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 		})
 		return
 	}
-	defer tx.Rollback() // Rollback by default, commit only on success
+	defer tx.Rollback()
 
-	// Create timestamp within transaction
 	timestamp := models.Timestamp{
 		UserID:    userID,
 		VideoID:   req.VideoID,
 		Title:     req.Title,
 		Note:      req.Note,
 		Timestamp: req.Timestamp,
-		// Embedding will be NULL initially and populated later by AI service
 	}
 
 	if err := t.db.CreateWithTx(ctx, tx, &timestamp); err != nil {
@@ -145,7 +139,6 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 		return
 	}
 
-	// Process tags within the same transaction
 	if len(req.Tags) > 0 {
 		tagIDs, err := t.tagService.ProcessTagsForTimestampWithTx(ctx, tx, req.Tags)
 		if err != nil {
@@ -163,7 +156,6 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 		}
 	}
 
-	// Commit the transaction
 	if err := tx.Commit(); err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_COMMIT_ERROR", "Failed to commit transaction", gin.H{
 			"error": err.Error(),
@@ -171,23 +163,11 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 		return
 	}
 
-	// Generate embedding asynchronously (outside transaction)
 	if t.aiService != nil {
 		go func() {
-			var tagNames []string
-			for _, tag := range timestamp.Tags {
-				tagNames = append(tagNames, tag.Name)
-			}
-			embeddingText := t.aiService.CreateEmbeddingText(timestamp.Title, timestamp.Note, tagNames)
-			if embeddingText != "" {
-				if embedding, err := t.aiService.GenerateEmbedding(embeddingText); err == nil {
-					_, _ = t.db.DB.NewUpdate().
-						Model((*models.Timestamp)(nil)).
-						Set("embedding = ?", embedding).
-						Set("updated_at = ?", time.Now().UTC()).
-						Where("id = ?", timestamp.ID).
-						Exec(context.Background())
-				}
+			time.Sleep(2 * time.Second) // Small delay to avoid immediate processing
+			if err := t.aiService.ProcessEmbeddingForTimestamp(timestamp.ID.String()); err != nil {
+				log.Printf("Failed to generate embedding for timestamp %s: %v", timestamp.ID, err)
 			}
 		}()
 	}
@@ -198,7 +178,6 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 	})
 }
 
-// GetAllTimestamps returns all timestamps for the current user
 func (t *TimestampsHandlers) GetAllTimestamps(c *gin.Context) {
 	userIDStr, exists := authhandlers.GetUserID(c)
 	if !exists {
@@ -206,7 +185,6 @@ func (t *TimestampsHandlers) GetAllTimestamps(c *gin.Context) {
 		return
 	}
 
-	// Convert string user ID to UUID
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
@@ -237,7 +215,6 @@ func (t *TimestampsHandlers) GetAllTimestamps(c *gin.Context) {
 	})
 }
 
-// GetTimestampsByVideoID returns all timestamps for a specific video
 func (t *TimestampsHandlers) GetTimestampsByVideoID(c *gin.Context) {
 	userIDStr, exists := authhandlers.GetUserID(c)
 	if !exists {
@@ -245,7 +222,6 @@ func (t *TimestampsHandlers) GetTimestampsByVideoID(c *gin.Context) {
 		return
 	}
 
-	// Convert string user ID to UUID
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
@@ -283,7 +259,6 @@ func (t *TimestampsHandlers) GetTimestampsByVideoID(c *gin.Context) {
 	})
 }
 
-// DeleteTimestamp deletes a specific timestamp
 func (t *TimestampsHandlers) DeleteTimestamp(c *gin.Context) {
 	userIDStr, exists := authhandlers.GetUserID(c)
 	if !exists {
@@ -291,7 +266,6 @@ func (t *TimestampsHandlers) DeleteTimestamp(c *gin.Context) {
 		return
 	}
 
-	// Convert string user ID to UUID
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
@@ -306,7 +280,6 @@ func (t *TimestampsHandlers) DeleteTimestamp(c *gin.Context) {
 		return
 	}
 
-	// Convert string timestamp ID to UUID
 	timestampID, err := uuid.Parse(timestampIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_TIMESTAMP_ID", "Invalid timestamp ID format", gin.H{
@@ -317,7 +290,6 @@ func (t *TimestampsHandlers) DeleteTimestamp(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// Start database transaction
 	tx, err := t.db.DB.BeginTx(ctx, nil)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_TRANSACTION_ERROR", "Failed to start database transaction", gin.H{
@@ -325,9 +297,8 @@ func (t *TimestampsHandlers) DeleteTimestamp(c *gin.Context) {
 		})
 		return
 	}
-	defer tx.Rollback() // Rollback by default, commit only on success
+	defer tx.Rollback()
 
-	// Soft delete the timestamp within transaction
 	_, err = tx.NewUpdate().
 		Model((*models.Timestamp)(nil)).
 		Set("deleted_at = ?", time.Now().UTC()).
@@ -341,7 +312,6 @@ func (t *TimestampsHandlers) DeleteTimestamp(c *gin.Context) {
 		return
 	}
 
-	// Clean up orphaned tag relations within the same transaction
 	if err := t.tagService.CleanupOrphanedTagRelationsWithTx(ctx, tx); err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "CLEANUP_ERROR", "Failed to cleanup orphaned tag relations", gin.H{
 			"error": err.Error(),
@@ -349,7 +319,6 @@ func (t *TimestampsHandlers) DeleteTimestamp(c *gin.Context) {
 		return
 	}
 
-	// Commit the transaction
 	if err := tx.Commit(); err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_COMMIT_ERROR", "Failed to commit transaction", gin.H{
 			"error": err.Error(),
@@ -362,7 +331,6 @@ func (t *TimestampsHandlers) DeleteTimestamp(c *gin.Context) {
 	})
 }
 
-// DeleteMultipleTimestamps deletes multiple timestamps
 func (t *TimestampsHandlers) DeleteMultipleTimestamps(c *gin.Context) {
 	userIDStr, exists := authhandlers.GetUserID(c)
 	if !exists {
@@ -370,7 +338,6 @@ func (t *TimestampsHandlers) DeleteMultipleTimestamps(c *gin.Context) {
 		return
 	}
 
-	// Convert string user ID to UUID
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
@@ -390,7 +357,6 @@ func (t *TimestampsHandlers) DeleteMultipleTimestamps(c *gin.Context) {
 		return
 	}
 
-	// Convert string IDs to UUIDs
 	var timestampIDs []uuid.UUID
 	for _, idStr := range req.IDs {
 		id, err := uuid.Parse(idStr)
@@ -406,7 +372,6 @@ func (t *TimestampsHandlers) DeleteMultipleTimestamps(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// Start database transaction
 	tx, err := t.db.DB.BeginTx(ctx, nil)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_TRANSACTION_ERROR", "Failed to start database transaction", gin.H{
@@ -414,9 +379,8 @@ func (t *TimestampsHandlers) DeleteMultipleTimestamps(c *gin.Context) {
 		})
 		return
 	}
-	defer tx.Rollback() // Rollback by default, commit only on success
+	defer tx.Rollback()
 
-	// Soft delete multiple timestamps within transaction
 	_, err = tx.NewUpdate().
 		Model((*models.Timestamp)(nil)).
 		Set("deleted_at = ?", time.Now().UTC()).
@@ -430,7 +394,6 @@ func (t *TimestampsHandlers) DeleteMultipleTimestamps(c *gin.Context) {
 		return
 	}
 
-	// Clean up orphaned tag relations within the same transaction
 	if err := t.tagService.CleanupOrphanedTagRelationsWithTx(ctx, tx); err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "CLEANUP_ERROR", "Failed to cleanup orphaned tag relations", gin.H{
 			"error": err.Error(),
@@ -438,7 +401,6 @@ func (t *TimestampsHandlers) DeleteMultipleTimestamps(c *gin.Context) {
 		return
 	}
 
-	// Commit the transaction
 	if err := tx.Commit(); err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_COMMIT_ERROR", "Failed to commit transaction", gin.H{
 			"error": err.Error(),

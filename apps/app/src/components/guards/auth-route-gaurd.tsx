@@ -21,7 +21,7 @@ export const AuthRouteGuard: React.FC<AuthRouteGuardProps> = ({ children }) => {
   }
 
   if (isAuthenticated) {
-    const from = location.state?.from.pathname || '/dashboard';
+    const from = location.state?.from.pathname || '/videos';
     return <Navigate to={from} replace />;
   }
 

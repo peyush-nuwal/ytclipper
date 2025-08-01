@@ -1,4 +1,3 @@
-// Package router
 package router
 
 import (
@@ -92,26 +91,31 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 		v1.GET("/health", handlers.HealthCheck)
 		v1.GET("/db-health", handlers.DBHealthCheck(db))
 
-		// Timestamp routes
 		protected := v1.Group("")
 		protected.Use(authMiddleware.RequireAuth())
 		{
 			timestampRoutes := protected.Group("/timestamps")
 			{
-				timestampRoutes.POST("", timestampHandlers.CreateTimestamp)
-				timestampRoutes.GET("", timestampHandlers.GetAllTimestamps)
-				timestampRoutes.GET("/:videoId", timestampHandlers.GetTimestampsByVideoID)
+				timestampRoutes.GET("/", timestampHandlers.GetAllTimestamps)
+				timestampRoutes.POST("/", timestampHandlers.CreateTimestamp)
+				timestampRoutes.GET("/:id", timestampHandlers.GetTimestampsByVideoID)
 				timestampRoutes.DELETE("/:id", timestampHandlers.DeleteTimestamp)
-				timestampRoutes.POST("/delete-many", timestampHandlers.DeleteMultipleTimestamps)
-				timestampRoutes.GET("/videos", timestampHandlers.GetAllVideosWithTimestamps)
-				timestampRoutes.GET("/recent", timestampHandlers.GetRecentTimestamps)
-				timestampRoutes.POST("/backfill-embeddings-async", timestampHandlers.BackfillEmbeddingsAsync)
-				timestampRoutes.GET("/embedding-status", timestampHandlers.GetEmbeddingStatus)
+				timestampRoutes.DELETE("/", timestampHandlers.DeleteMultipleTimestamps)
+				timestampRoutes.GET("/tags", timestampHandlers.GetAllTags)
+				timestampRoutes.POST("/tags/search", timestampHandlers.SearchTags)
 				timestampRoutes.POST("/search", timestampHandlers.SearchTimestamps)
 				timestampRoutes.POST("/summary", timestampHandlers.GenerateSummary)
 				timestampRoutes.POST("/question", timestampHandlers.AnswerQuestion)
-				timestampRoutes.GET("/tags", timestampHandlers.GetAllTags)
-				timestampRoutes.POST("/tags/search", timestampHandlers.SearchTags)
+				timestampRoutes.POST("/embeddings/backfill", timestampHandlers.BackfillEmbeddingsAsync)
+				timestampRoutes.GET("/embeddings/status", timestampHandlers.GetEmbeddingStatus)
+				timestampRoutes.POST("/embeddings/process-user", timestampHandlers.ProcessMissingEmbeddingsForUser)
+				timestampRoutes.POST("/embeddings/process-all", timestampHandlers.ProcessAllMissingEmbeddings)
+			}
+
+			videoRoutes := protected.Group("/videos")
+			{
+				videoRoutes.GET("/", timestampHandlers.GetAllVideosWithTimestamps)
+				videoRoutes.GET("/recent", timestampHandlers.GetRecentTimestamps)
 			}
 		}
 	}

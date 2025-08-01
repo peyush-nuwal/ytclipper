@@ -2,10 +2,9 @@ package timestamps
 
 import "time"
 
-// Request/Response Types
 type TagSearchRequest struct {
-	Query string `json:"query" binding:"required"` // Search query for tag names
-	Limit int    `json:"limit,omitempty"`          // Maximum number of results (default: 10, max: 50)
+	Query string `json:"query" binding:"required"`
+	Limit int    `json:"limit,omitempty"`
 }
 
 type CreateTimestampRequest struct {
@@ -31,7 +30,6 @@ type DeleteMultipleRequest struct {
 	IDs []string `json:"ids" binding:"required"`
 }
 
-// OpenAI API Types
 type EmbeddingRequest struct {
 	Input          []string `json:"input"`
 	Model          string   `json:"model"`
@@ -63,7 +61,6 @@ type ChatResponse struct {
 	} `json:"choices"`
 }
 
-// Internal Types
 type ScoredTimestamp struct {
 	Timestamp interface{} `json:"timestamp"`
 	Score     float32     `json:"score"`

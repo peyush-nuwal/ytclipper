@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,20 +20,21 @@ func (Tag) TableName() string {
 	return "tags"
 }
 
-// BeforeInsert hook for Tag
 func (t *Tag) BeforeInsert(ctx context.Context) error {
 	if t.ID == uuid.Nil {
 		t.ID = uuid.New()
 	}
-	now := time.Now()
-	t.CreatedAt = now
-	t.UpdatedAt = now
+	if t.CreatedAt.IsZero() {
+		t.CreatedAt = time.Now().UTC()
+	}
+	if t.UpdatedAt.IsZero() {
+		t.UpdatedAt = time.Now().UTC()
+	}
 	return nil
 }
 
-// BeforeUpdate hook for Tag
 func (t *Tag) BeforeUpdate(ctx context.Context) error {
-	t.UpdatedAt = time.Now()
+	t.UpdatedAt = time.Now().UTC()
 	return nil
 }
 
@@ -54,20 +56,21 @@ func (Timestamp) TableName() string {
 	return "timestamps"
 }
 
-// BeforeInsert hook for Timestamp
 func (t *Timestamp) BeforeInsert(ctx context.Context) error {
 	if t.ID == uuid.Nil {
 		t.ID = uuid.New()
 	}
-	now := time.Now()
-	t.CreatedAt = now
-	t.UpdatedAt = now
+	if t.CreatedAt.IsZero() {
+		t.CreatedAt = time.Now().UTC()
+	}
+	if t.UpdatedAt.IsZero() {
+		t.UpdatedAt = time.Now().UTC()
+	}
 	return nil
 }
 
-// BeforeUpdate hook for Timestamp
 func (t *Timestamp) BeforeUpdate(ctx context.Context) error {
-	t.UpdatedAt = time.Now()
+	t.UpdatedAt = time.Now().UTC()
 	return nil
 }
 
@@ -77,7 +80,6 @@ type TimestampTag struct {
 	TagID       uuid.UUID `json:"tag_id" bun:"tag_id,type:uuid,notnull"`
 	CreatedAt   time.Time `json:"created_at" bun:"created_at,notnull"`
 
-	// These fields are needed for Bun ORM many-to-many relationships
 	Timestamp *Timestamp `json:"-" bun:"rel:belongs-to,timestamp"`
 	Tag       *Tag       `json:"-" bun:"rel:belongs-to,tag"`
 }
@@ -86,12 +88,42 @@ func (TimestampTag) TableName() string {
 	return "timestamp_tags"
 }
 
-// BeforeInsert hook for TimestampTag
 func (tt *TimestampTag) BeforeInsert(ctx context.Context) error {
 	if tt.ID == uuid.Nil {
 		tt.ID = uuid.New()
 	}
-	now := time.Now()
-	tt.CreatedAt = now
+	if tt.CreatedAt.IsZero() {
+		tt.CreatedAt = time.Now().UTC()
+	}
+	return nil
+}
+
+func (t *Tag) MarshalJSON() ([]byte, error) {
+	type Alias Tag
+	if t.Timestamps == nil {
+		t.Timestamps = []Timestamp{}
+	}
+	return json.Marshal(&struct{ *Alias }{Alias: (*Alias)(t)})
+}
+
+func (t *Tag) AfterScan(ctx context.Context) error {
+	if t.Timestamps == nil {
+		t.Timestamps = []Timestamp{}
+	}
+	return nil
+}
+
+func (t *Timestamp) MarshalJSON() ([]byte, error) {
+	type Alias Timestamp
+	if t.Tags == nil {
+		t.Tags = []Tag{}
+	}
+	return json.Marshal(&struct{ *Alias }{Alias: (*Alias)(t)})
+}
+
+func (t *Timestamp) AfterScan(ctx context.Context) error {
+	if t.Tags == nil {
+		t.Tags = []Tag{}
+	}
 	return nil
 }

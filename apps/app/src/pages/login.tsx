@@ -27,7 +27,7 @@ export const LoginPage = () => {
     confirmPassword: '',
   });
 
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = location.state?.from?.pathname || '/videos';
   const [triggerGetGoogleUrl, { isLoading, error }] =
     useLazyGetGoogleLoginUrlQuery();
   const [login, { isLoading: isLoggingIn, error: loginError }] =

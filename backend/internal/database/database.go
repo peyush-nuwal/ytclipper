@@ -37,7 +37,6 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 		)
 	}
 
-	// Configure connection with retry logic
 	var sqldb *sql.DB
 	var err error
 	maxRetries := 5
@@ -46,7 +45,6 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 	for retryCount := 0; retryCount < maxRetries; retryCount++ {
 		sqldb = sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
 
-		// Test connection
 		if err = sqldb.Ping(); err == nil {
 			break
 		}
@@ -67,12 +65,10 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 		return nil, fmt.Errorf("failed to connect to database after %d attempts: %w", maxRetries, err)
 	}
 
-	// Configure connection pool
 	sqldb.SetMaxOpenConns(25)
 	sqldb.SetMaxIdleConns(25)
 	sqldb.SetConnMaxLifetime(5 * time.Minute)
 
-	// Create Bun DB instance
 	db := bun.NewDB(sqldb, pgdialect.New())
 
 	db.RegisterModel(
@@ -81,7 +77,6 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 		(*models.Timestamp)(nil),
 	)
 
-	// Add debug logging in development
 	if cfg.Server.Env == "development" {
 		db.AddQueryHook(bundebug.NewQueryHook(
 			bundebug.WithVerbose(true),
@@ -105,12 +100,10 @@ func (d *Database) Ping(ctx context.Context) error {
 	return d.DB.Ping()
 }
 
-// Transaction wrapper
 func (d *Database) RunInTransaction(ctx context.Context, fn func(ctx context.Context, tx bun.Tx) error) error {
 	return d.DB.RunInTx(ctx, nil, fn)
 }
 
-// Transaction-aware CRUD operations
 func (d *Database) CreateWithTx(ctx context.Context, tx bun.Tx, model interface{}) error {
 	_, err := tx.NewInsert().Model(model).Exec(ctx)
 	return err
@@ -130,7 +123,6 @@ func (d *Database) DeleteWithTx(ctx context.Context, tx bun.Tx, model interface{
 	return err
 }
 
-// Basic CRUD operations
 func (d *Database) Create(ctx context.Context, model interface{}) error {
 	_, err := d.DB.NewInsert().Model(model).Exec(ctx)
 	return err
@@ -150,7 +142,6 @@ func (d *Database) Delete(ctx context.Context, model interface{}) error {
 	return err
 }
 
-// Soft delete support
 func (d *Database) SoftDelete(ctx context.Context, model interface{}) error {
 	_, err := d.DB.NewUpdate().
 		Model(model).

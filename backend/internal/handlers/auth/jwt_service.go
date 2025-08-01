@@ -141,10 +141,8 @@ func (j *JWTService) RefreshAccessToken(refreshToken string) (*TokenPair, error)
 }
 
 func (j *JWTService) SetTokenCookies(c *gin.Context, accessToken, refreshToken string) {
-	// Set access token cookie
 	c.SetCookie("access_token", accessToken, int(j.accessTokenExpiry.Seconds()), "/", j.cookieDomain, j.cookieSecure, j.cookieHTTPOnly)
 
-	// Set refresh token cookie
 	c.SetCookie("refresh_token", refreshToken, int(j.refreshTokenExpiry.Seconds()), "/", j.cookieDomain, j.cookieSecure, j.cookieHTTPOnly)
 }
 

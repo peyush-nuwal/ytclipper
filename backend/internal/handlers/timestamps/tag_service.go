@@ -22,13 +22,11 @@ func NewTagService(db *database.Database) *TagService {
 }
 
 func (ts *TagService) FindOrCreateTag(ctx context.Context, tagName string) (*models.Tag, error) {
-	// Normalize tag name
 	tagName = strings.ToLower(strings.TrimSpace(tagName))
 	if tagName == "" {
 		return nil, fmt.Errorf("tag name cannot be empty")
 	}
 
-	// Try to find existing tag
 	var tag models.Tag
 	err := ts.db.DB.NewSelect().
 		Model(&tag).
@@ -39,7 +37,6 @@ func (ts *TagService) FindOrCreateTag(ctx context.Context, tagName string) (*mod
 		return &tag, nil
 	}
 
-	// Create new tag if not found
 	newTag := &models.Tag{
 		Name: tagName,
 	}

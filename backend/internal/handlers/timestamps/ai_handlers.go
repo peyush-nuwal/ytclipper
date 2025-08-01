@@ -15,7 +15,6 @@ import (
 	"github.com/shubhamku044/ytclipper/internal/models"
 )
 
-// SearchTimestamps searches timestamps using semantic similarity
 func (t *TimestampsHandlers) SearchTimestamps(c *gin.Context) {
 	userIDStr, exists := authhandlers.GetUserID(c)
 	if !exists {
@@ -23,7 +22,6 @@ func (t *TimestampsHandlers) SearchTimestamps(c *gin.Context) {
 		return
 	}
 
-	// Convert string user ID to UUID
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
@@ -40,7 +38,6 @@ func (t *TimestampsHandlers) SearchTimestamps(c *gin.Context) {
 		return
 	}
 
-	// Generate embedding for search query
 	queryEmbedding, err := t.aiService.GenerateEmbedding(req.Query)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "EMBEDDING_ERROR", "Failed to generate query embedding", gin.H{
@@ -49,7 +46,6 @@ func (t *TimestampsHandlers) SearchTimestamps(c *gin.Context) {
 		return
 	}
 
-	// Get all timestamps for the user (and optionally for specific video)
 	query := t.db.DB.NewSelect().
 		Model((*models.Timestamp)(nil)).
 		Where("user_id = ? AND deleted_at IS NULL", userID)
@@ -67,7 +63,6 @@ func (t *TimestampsHandlers) SearchTimestamps(c *gin.Context) {
 		return
 	}
 
-	// Calculate similarities and rank results
 	var scoredResults []ScoredTimestamp
 	for _, ts := range timestamps {
 		if len(ts.Embedding) > 0 {
@@ -79,15 +74,13 @@ func (t *TimestampsHandlers) SearchTimestamps(c *gin.Context) {
 		}
 	}
 
-	// Sort by score (highest first)
 	sort.Slice(scoredResults, func(i, j int) bool {
 		return scoredResults[i].Score > scoredResults[j].Score
 	})
 
-	// Apply limit
 	limit := req.Limit
 	if limit == 0 || limit > 50 {
-		limit = 10 // Default limit
+		limit = 10
 	}
 	if len(scoredResults) > limit {
 		scoredResults = scoredResults[:limit]
@@ -100,7 +93,6 @@ func (t *TimestampsHandlers) SearchTimestamps(c *gin.Context) {
 	})
 }
 
-// GenerateSummary generates a summary of timestamps for a video
 func (t *TimestampsHandlers) GenerateSummary(c *gin.Context) {
 	userIDStr, exists := authhandlers.GetUserID(c)
 	if !exists {
@@ -108,7 +100,6 @@ func (t *TimestampsHandlers) GenerateSummary(c *gin.Context) {
 		return
 	}
 
-	// Convert string user ID to UUID
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
@@ -125,7 +116,6 @@ func (t *TimestampsHandlers) GenerateSummary(c *gin.Context) {
 		return
 	}
 
-	// Get all timestamps for the video
 	var timestamps []models.Timestamp
 	err = t.db.DB.NewSelect().
 		Model(&timestamps).

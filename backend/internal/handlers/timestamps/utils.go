@@ -2,7 +2,6 @@ package timestamps
 
 import "math"
 
-// CosineSimilarity calculates the cosine similarity between two vectors
 func CosineSimilarity(a, b []float32) float32 {
 	if len(a) != len(b) {
 		return 0

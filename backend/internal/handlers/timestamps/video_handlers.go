@@ -11,7 +11,6 @@ import (
 	"github.com/shubhamku044/ytclipper/internal/models"
 )
 
-// GetAllVideosWithTimestamps returns all videos that have timestamps for the current user
 func (t *TimestampsHandlers) GetAllVideosWithTimestamps(c *gin.Context) {
 	userIDStr, exists := authhandlers.GetUserID(c)
 	if !exists {
@@ -19,7 +18,6 @@ func (t *TimestampsHandlers) GetAllVideosWithTimestamps(c *gin.Context) {
 		return
 	}
 
-	// Convert string user ID to UUID
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
@@ -30,49 +28,37 @@ func (t *TimestampsHandlers) GetAllVideosWithTimestamps(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// Get distinct video IDs with timestamps
-	var videos []struct {
-		VideoID   string  `json:"video_id"`
-		Title     string  `json:"title"`
-		Timestamp float64 `json:"timestamp"`
-		Note      string  `json:"note"`
-		Count     int     `json:"count"`
-	}
-
+	var timestamps []models.Timestamp
 	err = t.db.DB.NewSelect().
-		Column("video_id").
-		Column("title").
-		Column("timestamp").
-		Column("note").
-		Column("COUNT(*) as count").
-		Model((*models.Timestamp)(nil)).
+		Model(&timestamps).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
-		Group("video_id, title, timestamp, note").
-		Order("timestamp DESC").
-		Scan(ctx, &videos)
+		Order("created_at DESC").
+		Scan(ctx)
 
 	if err != nil {
-		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_READ_ERROR", "Failed to fetch videos", gin.H{
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_READ_ERROR", "Failed to fetch timestamps", gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	// Group by video ID to get unique videos with their first timestamp info
 	videoMap := make(map[string]gin.H)
-	for _, v := range videos {
-		if _, exists := videoMap[v.VideoID]; !exists {
-			videoMap[v.VideoID] = gin.H{
-				"video_id":  v.VideoID,
-				"title":     v.Title,
-				"timestamp": v.Timestamp,
-				"note":      v.Note,
-				"count":     v.Count,
+	for _, ts := range timestamps {
+		if _, exists := videoMap[ts.VideoID]; !exists {
+			videoMap[ts.VideoID] = gin.H{
+				"video_id":  ts.VideoID,
+				"title":     ts.Title,
+				"timestamp": ts.Timestamp,
+				"note":      ts.Note,
+				"count":     1,
+			}
+		} else {
+			if count, ok := videoMap[ts.VideoID]["count"].(int); ok {
+				videoMap[ts.VideoID]["count"] = count + 1
 			}
 		}
 	}
 
-	// Convert map to slice
 	var result []gin.H
 	for _, video := range videoMap {
 		result = append(result, video)
@@ -84,7 +70,6 @@ func (t *TimestampsHandlers) GetAllVideosWithTimestamps(c *gin.Context) {
 	})
 }
 
-// GetRecentTimestamps returns recent timestamps across all videos
 func (t *TimestampsHandlers) GetRecentTimestamps(c *gin.Context) {
 	userIDStr, exists := authhandlers.GetUserID(c)
 	if !exists {
@@ -92,7 +77,6 @@ func (t *TimestampsHandlers) GetRecentTimestamps(c *gin.Context) {
 		return
 	}
 
-	// Convert string user ID to UUID
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
