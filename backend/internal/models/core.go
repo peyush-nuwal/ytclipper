@@ -8,27 +8,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Tag represents a tag that can be applied to videos, clips, or playlists
-type Tag struct {
-	bun.BaseModel `bun:"table:tags,alias:t"`
-
-	ID     uuid.UUID `bun:"id,pk,type:uuid,default:uuid_generate_v4()" json:"id"`
-	UserID uuid.UUID `bun:"user_id,type:uuid,notnull" json:"user_id"`
-	Name   string    `bun:"name,notnull" json:"name"`
-	Color  string    `bun:"color,default:'#3B82F6'" json:"color"` // Hex color code
-
-	// Usage statistics
-	UsageCount int `bun:"usage_count,default:0" json:"usage_count"`
-
-	// Timestamps
-	CreatedAt time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
-	UpdatedAt time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
-	DeletedAt *time.Time `bun:"deleted_at,soft_delete,nullzero" json:"-"`
-
-	// Relationships
-	User *User `bun:"rel:belongs-to,join:user_id=id" json:"user,omitempty"`
-}
-
 // Clip represents a timestamped clip/note from a video
 type Clip struct {
 	bun.BaseModel `bun:"table:clips,alias:c"`
@@ -162,22 +141,6 @@ const (
 	SharedPermissionView SharedPermission = "view"
 	SharedPermissionEdit SharedPermission = "edit"
 )
-
-// BeforeInsert hooks for UUID generation and timestamps
-func (t *Tag) BeforeInsert(ctx context.Context) error {
-	if t.ID == uuid.Nil {
-		t.ID = uuid.New()
-	}
-	now := time.Now()
-	t.CreatedAt = now
-	t.UpdatedAt = now
-	return nil
-}
-
-func (t *Tag) BeforeUpdate(ctx context.Context) error {
-	t.UpdatedAt = time.Now()
-	return nil
-}
 
 func (c *Clip) BeforeInsert(ctx context.Context) error {
 	if c.ID == uuid.Nil {

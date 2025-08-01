@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/shubhamku044/ytclipper/internal/config"
 	"github.com/shubhamku044/ytclipper/internal/database"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
+	"github.com/shubhamku044/ytclipper/internal/models"
 	"github.com/uptrace/bun"
 )
 
@@ -36,18 +38,9 @@ func NewTimestampHandlers(db *database.Database, openaiAPIKey *config.OpenAIConf
 	}
 }
 
-type Timestamp struct {
-	ID        string    `json:"id" bun:"id,pk"`
-	VideoID   string    `json:"video_id" bun:"video_id,notnull"`
-	UserID    string    `json:"user_id" bun:"user_id,notnull"`
-	Timestamp float64   `json:"timestamp" bun:"timestamp,notnull"`
-	Title     string    `json:"title"`
-	Note      string    `json:"note"`
-	Tags      []string  `json:"tags" bun:"tags,array"`
-	Embedding []float32 `json:"embedding" bun:"embedding,notnull"`
-	CreatedAt time.Time `json:"created_at" bun:"created_at,notnull"`
-	UpdatedAt time.Time `json:"updated_at" bun:"updated_at,notnull"`
-	DeletedAt time.Time `json:"-" bun:"deleted_at,soft_delete,nullzero"`
+type TagSearchRequest struct {
+	Query string `json:"query" binding:"required"`
+	Limit int    `json:"limit,omitempty"`
 }
 
 type CreateTimestampRequest struct {
@@ -184,6 +177,143 @@ func (t *TimestampsHandlers) createEmbeddingText(title, note string, tags []stri
 
 	return strings.Join(parts, "\n")
 }
+func normalizeTagName(input string) string {
+	input = strings.ToLower(input)
+
+	input = strings.ReplaceAll(input, " ", "-")
+	input = strings.ReplaceAll(input, "_", "-")
+
+	reMultiHyphen := regexp.MustCompile(`-+`)
+	input = reMultiHyphen.ReplaceAllString(input, "-")
+
+	reClean := regexp.MustCompile(`[^a-z-]`)
+	input = reClean.ReplaceAllString(input, "")
+
+	input = strings.Trim(input, "-")
+
+	return input
+}
+
+func (t *TimestampsHandlers) findOrCreateTag(ctx context.Context, tagName string) (*models.Tag, error) {
+	if tagName == "" {
+		return nil, fmt.Errorf("tag name cannot be empty")
+	}
+	normalizedName := normalizeTagName(tagName)
+
+	if normalizedName == "" {
+		return nil, fmt.Errorf("tag name cannot be normalized to empty string")
+	}
+
+	var existingTag models.Tag
+	err := t.db.DB.NewSelect().
+		Model(&existingTag).
+		Where("name = ?", normalizedName).
+		Scan(ctx)
+
+	if err == nil {
+		return &existingTag, nil
+	}
+	newTag := &models.Tag{
+		ID:        uuid.NewString(),
+		Name:      normalizedName,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	_, err = t.db.DB.NewInsert().
+		Model(newTag).
+		Exec(ctx)
+
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			err = t.db.DB.NewSelect().
+				Model(&existingTag).
+				Where("LOWER(name) = LOWER(?)", normalizedName).
+				Scan(ctx)
+			if err == nil {
+				return &existingTag, nil
+			}
+		}
+		return nil, fmt.Errorf("failed to create tag: %w", err)
+	}
+
+	return newTag, nil
+}
+func (t *TimestampsHandlers) processTagsForTimestamp(ctx context.Context, tagNames []string) ([]string, error) {
+	if len(tagNames) == 0 {
+		return nil, nil
+	}
+
+	var tagIDs []string
+	for _, tagName := range tagNames {
+		if tagName == "" {
+			continue
+		}
+
+		tag, err := t.findOrCreateTag(ctx, tagName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process tag '%s': %w", tagName, err)
+		}
+
+		tagIDs = append(tagIDs, tag.ID)
+	}
+
+	return tagIDs, nil
+}
+
+func (t *TimestampsHandlers) createTimestampTagRelations(ctx context.Context, timestampID string, tagIDs []string) error {
+	if len(tagIDs) == 0 {
+		return nil
+	}
+
+	var relations []models.TimestampTag
+	for _, tagID := range tagIDs {
+		relations = append(relations, models.TimestampTag{
+			ID:          uuid.New().String(),
+			TimestampID: timestampID,
+			TagID:       tagID,
+			CreatedAt:   time.Now(),
+		})
+	}
+
+	_, err := t.db.DB.NewInsert().
+		Model(&relations).
+		Exec(ctx)
+
+	return err
+}
+
+func (t *TimestampsHandlers) SearchTags(c *gin.Context) {
+	var req TagSearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	if req.Limit <= 0 || req.Limit > 50 {
+		req.Limit = 10
+	}
+
+	var tags []models.Tag
+	query := t.db.DB.NewSelect().
+		Model(&tags).
+		Where("LOWER(name) ILIKE LOWER(?)", "%"+req.Query+"%").
+		Order("name ASC").
+		Limit(req.Limit)
+
+	err := query.Scan(c.Request.Context())
+	if err != nil {
+		log.Printf("Error searching tags: %v", err)
+		middleware.RespondWithError(c, http.StatusInternalServerError, "FAILED_TO_SEARCH_TAGS", "Failed to search tags", nil)
+		return
+	}
+
+	middleware.RespondWithOK(c, gin.H{
+		"tags": tags,
+	})
+}
 
 func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 	userID, exists := auth.GetUserID(c)
@@ -200,6 +330,13 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 		return
 	}
 
+	tagIDs, err := t.processTagsForTimestamp(c, req.Tags)
+	if err != nil {
+		log.Printf("Error processing tags: %v", err)
+		middleware.RespondWithError(c, http.StatusInternalServerError, "FAILED_TO_PROCESS_TAGS", "Failed to process tags", nil)
+		return
+	}
+
 	embeddingText := t.createEmbeddingText(req.Title, req.Note, req.Tags)
 	embedding, err := t.generateEmbedding(embeddingText)
 	if err != nil {
@@ -209,7 +346,7 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 		return
 	}
 
-	timestamp := Timestamp{
+	timestamp := models.Timestamp{
 		ID:        uuid.NewString(),
 		VideoID:   req.VideoID,
 		UserID:    userID,
@@ -217,22 +354,72 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 		Embedding: embedding,
 		Title:     req.Title,
 		Note:      req.Note,
-		Tags:      req.Tags,
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}
 
 	ctx := context.Background()
 
-	if _, err := t.db.DB.NewInsert().Model(&timestamp).Exec(ctx); err != nil {
+	tx, err := t.db.DB.BeginTx(ctx, nil)
+
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_TRANSACTION_ERROR", "Failed to start database transaction", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.NewInsert().Model(&timestamp).Exec(ctx); err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_INSERT_ERROR", "Failed to save timestamp", gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
 
+	if len(tagIDs) > 0 {
+		var relations []models.TimestampTag
+		for _, tagID := range tagIDs {
+			relations = append(relations, models.TimestampTag{
+				ID:          uuid.New().String(),
+				TimestampID: timestamp.ID,
+				TagID:       tagID,
+				CreatedAt:   time.Now(),
+			})
+		}
+		_, err = tx.NewInsert().Model(&relations).Exec(ctx)
+		if err != nil {
+			log.Printf("Error creating timestamp-tag relations: %v", err)
+			middleware.RespondWithError(c, http.StatusInternalServerError, "DB_INSERT_ERROR", "Failed to create tag relations", gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_COMMIT_ERROR", "Failed to commit transaction", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	var createdTimestamp models.Timestamp
+	err = t.db.DB.NewSelect().
+		Model(&createdTimestamp).
+		Relation("Tags").
+		Where("timestamp.id = ?", timestamp.ID).
+		Scan(ctx)
+
+	if err != nil {
+		log.Printf("Error fetching created timestamp: %v", err)
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_READ_ERROR", "Failed to fetch created timestamp", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
 	middleware.RespondWithOK(c, gin.H{
-		"timestamp": timestamp,
+		"timestamp": createdTimestamp,
 	})
 }
 func (t *TimestampsHandlers) AnswerQuestion(c *gin.Context) {
@@ -277,14 +464,14 @@ func (t *TimestampsHandlers) AnswerQuestion(c *gin.Context) {
 
 	// Get relevant timestamps
 	query := t.db.DB.NewSelect().
-		Model((*Timestamp)(nil)).
+		Model((*models.Timestamp)(nil)).
 		Where("user_id = ? AND deleted_at IS NULL", userID)
 
 	if req.VideoID != "" {
 		query = query.Where("video_id = ?", req.VideoID)
 	}
 
-	var timestamps []Timestamp
+	var timestamps []models.Timestamp
 	err = query.Scan(context.Background(), &timestamps)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_READ_ERROR", "Failed to fetch timestamps", gin.H{
@@ -295,7 +482,7 @@ func (t *TimestampsHandlers) AnswerQuestion(c *gin.Context) {
 
 	// Find most relevant notes
 	type ScoredTimestamp struct {
-		Timestamp Timestamp
+		Timestamp models.Timestamp
 		Score     float32
 	}
 
@@ -332,7 +519,11 @@ func (t *TimestampsHandlers) AnswerQuestion(c *gin.Context) {
 			context.WriteString(fmt.Sprintf("**Content:**\n%s\n\n", ts.Note))
 		}
 		if len(ts.Tags) > 0 {
-			context.WriteString(fmt.Sprintf("**Tags:** %s\n\n", strings.Join(ts.Tags, ", ")))
+			var tagNames []string
+			for _, tag := range ts.Tags {
+				tagNames = append(tagNames, tag.Name)
+			}
+			context.WriteString(fmt.Sprintf("**Tags:** %s\n\n", strings.Join(tagNames, ", ")))
 		}
 		context.WriteString("---\n\n")
 	}
@@ -444,7 +635,7 @@ func (t *TimestampsHandlers) GenerateSummary(c *gin.Context) {
 	}
 
 	// Get all timestamps for the video
-	var timestamps []Timestamp
+	var timestamps []models.Timestamp
 	err := t.db.DB.NewSelect().
 		Model(&timestamps).
 		Where("user_id = ? AND video_id = ? AND deleted_at IS NULL", userID, req.VideoID).
@@ -474,7 +665,11 @@ func (t *TimestampsHandlers) GenerateSummary(c *gin.Context) {
 			content.WriteString(fmt.Sprintf("**Content:**\n%s\n\n", ts.Note))
 		}
 		if len(ts.Tags) > 0 {
-			content.WriteString(fmt.Sprintf("**Tags:** %s\n\n", strings.Join(ts.Tags, ", ")))
+			var tagNames []string
+			for _, tag := range ts.Tags {
+				tagNames = append(tagNames, tag.Name)
+			}
+			content.WriteString(fmt.Sprintf("**Tags:** %s\n\n", strings.Join(tagNames, ", ")))
 		}
 		content.WriteString("---\n\n")
 	}
@@ -539,14 +734,14 @@ func (t *TimestampsHandlers) SearchTimestamps(c *gin.Context) {
 
 	// Get all timestamps for the user (and optionally for specific video)
 	query := t.db.DB.NewSelect().
-		Model((*Timestamp)(nil)).
+		Model((*models.Timestamp)(nil)).
 		Where("user_id = ? AND deleted_at IS NULL", userID)
 
 	if req.VideoID != "" {
 		query = query.Where("video_id = ?", req.VideoID)
 	}
 
-	var timestamps []Timestamp
+	var timestamps []models.Timestamp
 	err = query.Scan(context.Background(), &timestamps)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_READ_ERROR", "Failed to fetch timestamps", gin.H{
@@ -557,8 +752,8 @@ func (t *TimestampsHandlers) SearchTimestamps(c *gin.Context) {
 
 	// Calculate similarities and rank results
 	type ScoredTimestamp struct {
-		Timestamp Timestamp `json:"timestamp"`
-		Score     float32   `json:"score"`
+		Timestamp models.Timestamp `json:"timestamp"`
+		Score     float32          `json:"score"`
 	}
 
 	var scoredResults []ScoredTimestamp
@@ -614,7 +809,7 @@ func (t *TimestampsHandlers) processEmbeddingsBackground(userID string) {
 	batchSize := 5 // Smaller batches for background processing
 
 	// Find timestamps without embeddings
-	var timestamps []Timestamp
+	var timestamps []models.Timestamp
 	err := t.db.DB.NewSelect().
 		Model(&timestamps).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
@@ -638,7 +833,11 @@ func (t *TimestampsHandlers) processEmbeddingsBackground(userID string) {
 		batch := timestamps[i:end]
 
 		for _, ts := range batch {
-			embeddingText := t.createEmbeddingText(ts.Title, ts.Note, ts.Tags)
+			var tagNames []string
+			for _, tag := range ts.Tags {
+				tagNames = append(tagNames, tag.Name)
+			}
+			embeddingText := t.createEmbeddingText(ts.Title, ts.Note, tagNames)
 			if embeddingText == "" {
 				continue
 			}
@@ -651,7 +850,7 @@ func (t *TimestampsHandlers) processEmbeddingsBackground(userID string) {
 			}
 
 			_, err = t.db.DB.NewUpdate().
-				Model((*Timestamp)(nil)).
+				Model((*models.Timestamp)(nil)).
 				Set("embedding = ?", embedding).
 				Set("updated_at = ?", time.Now().UTC()).
 				Where("id = ?", ts.ID).
@@ -683,7 +882,7 @@ func (t *TimestampsHandlers) GetEmbeddingStatus(c *gin.Context) {
 
 	// Count total timestamps
 	totalCount, err := t.db.DB.NewSelect().
-		Model((*Timestamp)(nil)).
+		Model((*models.Timestamp)(nil)).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
 		Count(ctx)
 	if err != nil {
@@ -695,7 +894,7 @@ func (t *TimestampsHandlers) GetEmbeddingStatus(c *gin.Context) {
 
 	// Count timestamps with embeddings
 	withEmbeddingsCount, err := t.db.DB.NewSelect().
-		Model((*Timestamp)(nil)).
+		Model((*models.Timestamp)(nil)).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
 		Where("embedding IS NOT NULL").
 		Count(ctx)
@@ -736,7 +935,7 @@ func (t *TimestampsHandlers) GetTimestampsByVideoID(c *gin.Context) {
 		return
 	}
 
-	timestamps := []Timestamp{}
+	timestamps := []models.Timestamp{}
 	err := t.db.DB.NewSelect().
 		Model(&timestamps).
 		Where("user_id = ? AND video_id = ? AND deleted_at IS NULL", userID, videoID).
@@ -760,9 +959,10 @@ func (t *TimestampsHandlers) GetAllTimestamps(c *gin.Context) {
 		return
 	}
 
-	var timestamps []Timestamp
+	var timestamps []models.Timestamp
 	err := t.db.DB.NewSelect().
 		Model(&timestamps).
+		Relation("Tags").
 		Where("user_id = ? AND deleted_at IS NULL", userID).
 		Order("created_at DESC").
 		Scan(context.Background())
@@ -819,7 +1019,7 @@ func (t *TimestampsHandlers) GetRecentTimestamps(c *gin.Context) {
 		}
 	}
 
-	var timestamps []Timestamp
+	var timestamps []models.Timestamp
 	err := t.db.DB.NewSelect().
 		Model(&timestamps).
 		Where("user_id = ? AND deleted_at IS NULL", userID).

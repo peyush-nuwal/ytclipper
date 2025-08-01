@@ -1,3 +1,5 @@
+import { AspectRatio, Button } from '@ytclipper/ui';
+import { Plus } from 'lucide-react';
 import React, {
   forwardRef,
   useCallback,
@@ -34,6 +36,10 @@ interface YTPlayerClass {
   getIframe(): HTMLIFrameElement;
   getCurrentTime(): number;
   getDuration(): number;
+  getVideoData(): {
+    title: string;
+    video_id: string;
+  };
 }
 
 declare global {
@@ -56,10 +62,11 @@ declare global {
   }
 }
 
-interface YouTubePlayerProps {
+export interface YouTubePlayerProps {
   videoId: string;
   onReady?: () => void;
   onError?: (error: number) => void;
+  onVideoTitle?: (title: string) => void;
   className?: string;
 }
 
@@ -69,6 +76,11 @@ interface YouTubePlayerRef {
   pause: () => void;
   getCurrentTime: () => number;
   getDuration: () => number;
+  onVideoTitle?: () => string | null;
+  getVideoData?: () => {
+    title: string;
+    video_id: string;
+  };
 }
 
 // Global state for API loading
@@ -138,7 +150,16 @@ const loadYouTubeAPI = (): Promise<void> => {
 };
 
 export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
-  ({ videoId, onReady, onError, className = '' }: YouTubePlayerProps, ref) => {
+  (
+    {
+      videoId,
+      onReady,
+      onError,
+      onVideoTitle,
+      className = '',
+    }: YouTubePlayerProps,
+    ref,
+  ) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const playerInstanceRef = useRef<YTPlayerClass | null>(null);
     const playerIdRef = useRef<string>(
@@ -146,10 +167,14 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
     );
     const [isPlayerReady, setIsPlayerReady] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [videoTitle, setVideoTitle] = useState<string | null>(null);
+    const onVideoTitleRef = useRef(onVideoTitle);
 
     const onReadyRef = useRef(onReady);
     const onErrorRef = useRef(onError);
-
+    useEffect(() => {
+      onVideoTitleRef.current = onVideoTitle;
+    }, [onVideoTitle]);
     useEffect(() => {
       onReadyRef.current = onReady;
     }, [onReady]);
@@ -214,13 +239,41 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
           }
           return 0;
         },
+        getVideoTitle: () => {
+          return videoTitle;
+        },
+        getVideoData: () => {
+          if (playerInstanceRef.current && isPlayerReady) {
+            try {
+              return playerInstanceRef.current.getVideoData();
+            } catch (error) {
+              console.error('Error getting video data:', error);
+            }
+          }
+          return { title: '', video_id: '' };
+        },
       };
-    }, [isPlayerReady]);
+    }, [isPlayerReady, videoTitle]);
+
     React.useImperativeHandle(ref, () => playerMethods, [playerMethods]);
 
     const handlePlayerReady = useCallback(() => {
       setIsPlayerReady(true);
       setError(null);
+      if (playerInstanceRef.current) {
+        try {
+          const videoData = playerInstanceRef.current.getVideoData();
+          const title = videoData.title;
+          if (title) {
+            setVideoTitle(title);
+            // Use ref to call callback without adding to dependencies
+            onVideoTitleRef.current?.(title);
+          }
+        } catch (error) {
+          console.error('Error fetching video title:', error);
+        }
+      }
+
       onReadyRef.current?.();
     }, []);
 
@@ -313,46 +366,58 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
     }
 
     return (
-      <div
-        className={`relative bg-black rounded-lg overflow-hidden ${className}`}
-      >
+      <AspectRatio ratio={16 / 9} className='w-full'>
         <div
-          ref={containerRef}
-          className='w-full h-full'
-          style={{ minHeight: '200px' }}
-        />
+          className={`relative bg-black rounded-lg overflow-hidden ${className}`}
+        >
+          <div
+            ref={containerRef}
+            className='w-full h-full'
+            style={{ minHeight: '200px' }}
+          />
 
-        {!isPlayerReady && !error && (
-          <div className='absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-black'>
-            <div className='text-center'>
-              {/* Loading Spinner */}
-              <div className='relative mb-4'>
-                <div className='w-12 h-12 border-4 border-gray-600 border-t-red-500 rounded-full animate-spin mx-auto' />
-                <div className='absolute inset-0 flex items-center justify-center'>
-                  <div className='w-6 h-6 bg-red-500 rounded-full animate-pulse' />
+          {!isPlayerReady && !error && (
+            <div className='absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-black'>
+              <div className='text-center'>
+                {/* Loading Spinner */}
+                <div className='relative mb-4'>
+                  <div className='w-12 h-12 border-4 border-gray-600 border-t-red-500 rounded-full animate-spin mx-auto' />
+                  <div className='absolute inset-0 flex items-center justify-center'>
+                    <div className='w-6 h-6 bg-red-500 rounded-full animate-pulse' />
+                  </div>
+                </div>
+
+                <div className='flex justify-center space-x-1'>
+                  <div className='w-2 h-2 bg-gray-400 rounded-full animate-pulse' />
+                  <div
+                    className='w-2 h-2 bg-gray-400 rounded-full animate-pulse'
+                    style={{ animationDelay: '0.2s' }}
+                  />
+                  <div
+                    className='w-2 h-2 bg-gray-400 rounded-full animate-pulse'
+                    style={{ animationDelay: '0.4s' }}
+                  />
+                </div>
+
+                <div className='text-gray-400 text-xs mt-3'>
+                  API Loaded: {isAPILoaded ? 'Yes' : 'No'} | API Loading:{' '}
+                  {isAPILoading ? 'Yes' : 'No'} | Video ID: {videoId} | Player
                 </div>
               </div>
-
-              <div className='flex justify-center space-x-1'>
-                <div className='w-2 h-2 bg-gray-400 rounded-full animate-pulse' />
-                <div
-                  className='w-2 h-2 bg-gray-400 rounded-full animate-pulse'
-                  style={{ animationDelay: '0.2s' }}
-                />
-                <div
-                  className='w-2 h-2 bg-gray-400 rounded-full animate-pulse'
-                  style={{ animationDelay: '0.4s' }}
-                />
-              </div>
-
-              <div className='text-gray-400 text-xs mt-3'>
-                API Loaded: {isAPILoaded ? 'Yes' : 'No'} | API Loading:{' '}
-                {isAPILoading ? 'Yes' : 'No'} | Video ID: {videoId} | Player
-              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+          <Button
+            variant='floating'
+            size='icon'
+            className='absolute top-4 right-4 rounded-full'
+            onClick={() => {
+              console.log('Add to Clip button clicked');
+            }}
+          >
+            <Plus className='h-5 w-5' />
+          </Button>
+        </div>
+      </AspectRatio>
     );
   },
 );

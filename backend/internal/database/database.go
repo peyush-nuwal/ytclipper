@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/shubhamku044/ytclipper/internal/config"
+	"github.com/shubhamku044/ytclipper/internal/models"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -73,6 +74,12 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 
 	// Create Bun DB instance
 	db := bun.NewDB(sqldb, pgdialect.New())
+
+	db.RegisterModel(
+		(*models.Tag)(nil),
+		(*models.Timestamp)(nil),
+		(*models.TimestampTag)(nil),
+	)
 
 	// Add debug logging in development
 	if cfg.Server.Env == "development" {
