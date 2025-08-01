@@ -118,7 +118,8 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 				timestampRoutes.POST("/search", timestampHandlers.SearchTimestamps)
 				timestampRoutes.POST("/summary", timestampHandlers.GenerateSummary)
 				timestampRoutes.POST("/question", timestampHandlers.AnswerQuestion)
-				timestampRoutes.POST("/tags", timestampHandlers.SearchTags)
+				timestampRoutes.GET("/tags", timestampHandlers.GetAllTags)
+				timestampRoutes.POST("/tags/search", timestampHandlers.SearchTags)
 			}
 		}
 	}

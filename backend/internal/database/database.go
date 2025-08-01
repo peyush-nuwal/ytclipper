@@ -76,9 +76,9 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 	db := bun.NewDB(sqldb, pgdialect.New())
 
 	db.RegisterModel(
+		(*models.TimestampTag)(nil),
 		(*models.Tag)(nil),
 		(*models.Timestamp)(nil),
-		(*models.TimestampTag)(nil),
 	)
 
 	// Add debug logging in development

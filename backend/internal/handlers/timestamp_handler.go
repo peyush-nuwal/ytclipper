@@ -39,8 +39,8 @@ func NewTimestampHandlers(db *database.Database, openaiAPIKey *config.OpenAIConf
 }
 
 type TagSearchRequest struct {
-	Query string `json:"query" binding:"required"`
-	Limit int    `json:"limit,omitempty"`
+	Query string `json:"query" binding:"required"` // Search query for tag names
+	Limit int    `json:"limit,omitempty"`          // Maximum number of results (default: 10, max: 50)
 }
 
 type CreateTimestampRequest struct {
@@ -283,6 +283,59 @@ func (t *TimestampsHandlers) createTimestampTagRelations(ctx context.Context, ti
 	return err
 }
 
+func (t *TimestampsHandlers) GetAllTags(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found", nil)
+		return
+	}
+
+	limit := 100 // Default limit for all tags
+	if param := c.Query("limit"); param != "" {
+		if parsed, err := strconv.Atoi(param); err == nil && parsed > 0 && parsed <= 500 {
+			limit = parsed
+		}
+	}
+
+	// First, check if user has any timestamps
+	timestampCount, err := t.db.DB.NewSelect().
+		Model((*models.Timestamp)(nil)).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Count(c.Request.Context())
+
+	if err != nil {
+		log.Printf("Error checking timestamp count: %v", err)
+		middleware.RespondWithError(c, http.StatusInternalServerError, "FAILED_TO_FETCH_TAGS", "Failed to fetch tags", nil)
+		return
+	}
+
+	var tags []models.Tag
+
+	if timestampCount == 0 {
+		// User has no timestamps, return empty list
+		tags = []models.Tag{}
+	} else {
+		// Get all tags that are used by the current user using a subquery
+		query := t.db.DB.NewSelect().
+			Model(&tags).
+			Where("id IN (SELECT DISTINCT tag_id FROM timestamp_tags WHERE timestamp_id IN (SELECT id FROM timestamps WHERE user_id = ? AND deleted_at IS NULL))", userID).
+			Order("name ASC").
+			Limit(limit)
+
+		err = query.Scan(c.Request.Context())
+		if err != nil {
+			log.Printf("Error fetching all tags: %v", err)
+			middleware.RespondWithError(c, http.StatusInternalServerError, "FAILED_TO_FETCH_TAGS", "Failed to fetch tags", gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	middleware.RespondWithOK(c, gin.H{
+		"tags":  tags,
+		"count": len(tags),
+	})
+}
+
 func (t *TimestampsHandlers) SearchTags(c *gin.Context) {
 	var req TagSearchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -296,22 +349,50 @@ func (t *TimestampsHandlers) SearchTags(c *gin.Context) {
 		req.Limit = 10
 	}
 
-	var tags []models.Tag
-	query := t.db.DB.NewSelect().
-		Model(&tags).
-		Where("LOWER(name) ILIKE LOWER(?)", "%"+req.Query+"%").
-		Order("name ASC").
-		Limit(req.Limit)
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found", nil)
+		return
+	}
 
-	err := query.Scan(c.Request.Context())
+	// First, check if user has any timestamps
+	timestampCount, err := t.db.DB.NewSelect().
+		Model((*models.Timestamp)(nil)).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Count(c.Request.Context())
+
 	if err != nil {
-		log.Printf("Error searching tags: %v", err)
+		log.Printf("Error checking timestamp count: %v", err)
 		middleware.RespondWithError(c, http.StatusInternalServerError, "FAILED_TO_SEARCH_TAGS", "Failed to search tags", nil)
 		return
 	}
 
+	var tags []models.Tag
+
+	if timestampCount == 0 {
+		// User has no timestamps, return empty list
+		tags = []models.Tag{}
+	} else {
+		// Search for tags that are used by the current user using a subquery
+		query := t.db.DB.NewSelect().
+			Model(&tags).
+			Where("id IN (SELECT DISTINCT tag_id FROM timestamp_tags WHERE timestamp_id IN (SELECT id FROM timestamps WHERE user_id = ? AND deleted_at IS NULL))", userID).
+			Where("LOWER(name) ILIKE LOWER(?)", "%"+req.Query+"%").
+			Order("name ASC").
+			Limit(req.Limit)
+
+		err = query.Scan(c.Request.Context())
+		if err != nil {
+			log.Printf("Error searching tags: %v", err)
+			middleware.RespondWithError(c, http.StatusInternalServerError, "FAILED_TO_SEARCH_TAGS", "Failed to search tags", gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	middleware.RespondWithOK(c, gin.H{
-		"tags": tags,
+		"tags":  tags,
+		"query": req.Query,
+		"count": len(tags),
 	})
 }
 
