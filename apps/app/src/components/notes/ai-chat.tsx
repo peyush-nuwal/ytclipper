@@ -1,3 +1,7 @@
+import {
+  useAnswerQuestionMutation,
+  useGenerateSummaryMutation,
+} from '@/services/timestamps';
 import { useAppSelector } from '@/store/hooks';
 import {
   Badge,
@@ -9,7 +13,7 @@ import {
   Input,
   ScrollArea,
 } from '@ytclipper/ui';
-import { Bot, Send, Sparkles, User } from 'lucide-react';
+import { Bot, Check, Copy, Loader2, Send, Sparkles, User } from 'lucide-react';
 import { useState } from 'react';
 
 interface Message {
@@ -21,24 +25,30 @@ interface Message {
 }
 
 interface AIChatProps {
+  videoId: string;
   currentTimestamp?: number;
-  onAskAboutTimestamp?: (timestamp: number, question: string) => void;
 }
 
-export const AIChat = ({ currentTimestamp }: AIChatProps) => {
+export const AIChat = ({ videoId, currentTimestamp }: AIChatProps) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       type: 'ai',
       content:
-        "Hi! I'm here to help you understand this video better. You can ask me questions about any part of the video, and I'll provide detailed explanations based on the content.",
+        "Hi! I'm here to help you understand this video better. You can ask me questions about any part of the video, and I'll provide detailed explanations based on your notes.",
       timestamp: new Date(),
     },
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
   const timeStampsSliceData = useAppSelector((state) => state.timestamps);
   const videoTitle = timeStampsSliceData.videoTitle;
+
+  const [answerQuestion, { isLoading: isAnswering }] =
+    useAnswerQuestionMutation();
+  const [generateSummary, { isLoading: isGeneratingSummary }] =
+    useGenerateSummaryMutation();
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -60,21 +70,80 @@ export const AIChat = ({ currentTimestamp }: AIChatProps) => {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const question = inputValue;
     setInputValue('');
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      const response = await answerQuestion({
+        question: question.trim(),
+        video_id: videoId,
+        context: 5,
+      }).unwrap();
+
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: `I understand you're asking about "${inputValue}". Based on the video content${currentTimestamp ? ` at timestamp ${formatTime(currentTimestamp)}` : ''}, here's what I can explain:\n\nThis is a simulated AI response. In a real implementation, this would connect to an AI service that has analyzed the video content and can provide contextual answers based on the video transcript and your notes.`,
+        content: response.data.answer,
         timestamp: new Date(),
         relatedTimestamp: currentTimestamp,
       };
       setMessages((prev) => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Failed to answer question:', error);
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content:
+          'Sorry, I encountered an error while processing your question. Please try again.',
+        timestamp: new Date(),
+        relatedTimestamp: currentTimestamp,
+      };
+      setMessages((prev) => [...prev, errorResponse]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    setIsLoading(true);
+
+    try {
+      const response = await generateSummary({
+        video_id: videoId,
+        type: 'brief',
+      }).unwrap();
+
+      const summaryMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: `**Video Summary:**\n\n${response.data.summary}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, summaryMessage]);
+    } catch (error) {
+      console.error('Failed to generate summary:', error);
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content:
+          'Sorry, I encountered an error while generating the summary. Please try again.',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorResponse]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+    }
   };
 
   const suggestedQuestions = [
@@ -145,6 +214,20 @@ export const AIChat = ({ currentTimestamp }: AIChatProps) => {
                         At {formatTime(message.relatedTimestamp)}
                       </Badge>
                     )}
+                    {message.type === 'ai' && (
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='mt-2 h-6 px-2'
+                        onClick={() => copyToClipboard(message.content)}
+                      >
+                        {copied ? (
+                          <Check className='h-3 w-3 text-green-600' />
+                        ) : (
+                          <Copy className='h-3 w-3' />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -173,8 +256,24 @@ export const AIChat = ({ currentTimestamp }: AIChatProps) => {
           </div>
         </ScrollArea>
 
-        {/* Suggested Questions */}
+        {/* Quick Actions */}
         <div className='px-4 py-3 border-t'>
+          <div className='flex gap-2 mb-2'>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={handleGenerateSummary}
+              disabled={isGeneratingSummary}
+              className='text-xs h-7'
+            >
+              {isGeneratingSummary ? (
+                <Loader2 className='h-3 w-3 mr-1 animate-spin' />
+              ) : (
+                <Sparkles className='h-3 w-3 mr-1' />
+              )}
+              Generate Summary
+            </Button>
+          </div>
           <div className='text-xs text-muted-foreground mb-2'>
             Suggested questions:
           </div>
@@ -203,11 +302,11 @@ export const AIChat = ({ currentTimestamp }: AIChatProps) => {
               onKeyPress={(e) =>
                 e.key === 'Enter' && !e.shiftKey && handleSendMessage()
               }
-              disabled={isLoading}
+              disabled={isLoading || isAnswering}
             />
             <Button
               onClick={handleSendMessage}
-              disabled={!inputValue.trim() || isLoading}
+              disabled={!inputValue.trim() || isLoading || isAnswering}
               size='icon'
             >
               <Send className='h-4 w-4' />

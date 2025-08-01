@@ -230,7 +230,7 @@ func (t *TimestampsHandlers) GetTimestampsByVideoID(c *gin.Context) {
 		return
 	}
 
-	videoID := c.Param("videoId")
+	videoID := c.Param("id")
 	if videoID == "" {
 		middleware.RespondWithError(c, http.StatusBadRequest, "MISSING_VIDEO_ID", "Video ID is required", nil)
 		return

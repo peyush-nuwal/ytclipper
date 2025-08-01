@@ -1,13 +1,6 @@
 import { AIChat, NotesPanel } from '@/components/notes';
 import { VideoPlayer } from '@/components/video';
-import { useYouTubePlayer } from '@/hooks/youtube-player';
-import {
-  useCreateTimestampMutation,
-  useDeleteTimestampMutation,
-  useGetTimestampsQuery,
-} from '@/services/timestamps';
-import '@uiw/react-markdown-preview/markdown.css';
-import '@uiw/react-md-editor/markdown-editor.css';
+import { useGenerateSummaryMutation } from '@/services/timestamps';
 import {
   Badge,
   Button,
@@ -25,53 +18,27 @@ import {
   TabsTrigger,
   toast,
 } from '@ytclipper/ui';
-import { Bot, FileText, Play } from 'lucide-react';
+import {
+  Bot,
+  Check,
+  Copy,
+  FileText,
+  Loader2,
+  Play,
+  Sparkles,
+} from 'lucide-react';
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 
 export const TimestampsPage = () => {
   const { videoId } = useParams<{ videoId: string }>();
+  const navigate = useNavigate();
   const [videoUrl, setVideoUrl] = useState('');
-  const [isPlayerReady, setIsPlayerReady] = useState(false);
-  const { jumpToTimestamp, playerRef } = useYouTubePlayer();
-  const [isFloatingNoteOpen, setIsFloatingNoteOpen] = useState(false);
-  const [activeNote, setActiveNote] = useState<string>('');
+  const [summary, setSummary] = useState('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const {
-    data: timestampsData,
-    isLoading: timestampsLoading,
-    refetch,
-  } = useGetTimestampsQuery(videoId || '', {
-    skip: !videoId,
-  });
-  const [deleteTimestamp] = useDeleteTimestampMutation();
-  const [createTimestamp, { isLoading: isCreating }] =
-    useCreateTimestampMutation();
-
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingNote, setEditingNote] = useState('');
-
-  const handleFloatingNoteAdd = async (data: {
-    title: string;
-    note: string;
-    tags: string[];
-    timestamp: number;
-  }) => {
-    if (!videoId) {
-      return;
-    }
-
-    await createTimestamp({
-      video_id: videoId,
-      timestamp: data.timestamp,
-      title: data.title,
-      note: data.note,
-      tags: data.tags,
-    }).unwrap();
-
-    refetch();
-    setIsFloatingNoteOpen(false);
-  };
+  const [generateSummary] = useGenerateSummaryMutation();
 
   const extractVideoId = (url: string) => {
     const regex =
@@ -84,7 +51,9 @@ export const TimestampsPage = () => {
     if (videoUrl) {
       const id = extractVideoId(videoUrl);
       if (id) {
-        // setVideoId(id);
+        // Navigate to the new video page
+        navigate(`/timestamps/${id}`);
+        setVideoUrl('');
         toast('Video loaded successfully!', {
           description: 'You can now start taking notes at any timestamp.',
         });
@@ -96,36 +65,39 @@ export const TimestampsPage = () => {
     }
   };
 
-  const handleTimestampClick = (seconds: number) => {
-    if (isPlayerReady) {
-      jumpToTimestamp(seconds);
+  const handleGenerateSummary = async () => {
+    if (!videoId) {
+      return;
+    }
+
+    setIsGeneratingSummary(true);
+    try {
+      const response = await generateSummary({
+        video_id: videoId,
+        type: 'brief',
+      }).unwrap();
+
+      setSummary(response.data.summary);
+      toast('Summary generated successfully!', {
+        description: 'AI has analyzed your video notes and created a summary.',
+      });
+    } catch (error) {
+      console.error('Failed to generate summary:', error);
+      toast('Failed to generate summary', {
+        description: 'Please try again later.',
+      });
+    } finally {
+      setIsGeneratingSummary(false);
     }
   };
 
-  const startEditing = (id: string, currentNote: string) => {
-    setEditingId(id);
-    setEditingNote(currentNote);
-  };
-
-  const saveEdit = async (id: string, newNote: string) => {
+  const copyToClipboard = async (text: string) => {
     try {
-      console.log('Saving edit for ID:', id, 'with note:', newNote);
-      setEditingId(null);
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error('Failed to update timestamp:', error);
-    }
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-  };
-
-  const handleDeleteTimestamp = async (id: string) => {
-    try {
-      await deleteTimestamp(id).unwrap();
-      refetch();
-    } catch (error) {
-      console.error('Failed to delete timestamp:', error);
+      console.error('Failed to copy to clipboard:', error);
     }
   };
 
@@ -155,8 +127,8 @@ export const TimestampsPage = () => {
                 className='w-full h-full rounded-b-none'
               />
 
-              <div className='flex items-center justify-between'>
-                <div className='w-full mt-4'>
+              <div className='flex items-center justify-between mt-4'>
+                <div className='w-full'>
                   <div className='flex gap-2'>
                     <Input
                       placeholder='Paste YouTube video URL here...'
@@ -173,24 +145,75 @@ export const TimestampsPage = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Video Summary Card */}
               <Card className='mt-4'>
-                <CardHeader>
-                  <CardTitle className='text-lg flex items-center gap-2'>
-                    <FileText className='h-5 w-5' />
-                    Video Summary
-                  </CardTitle>
+                <CardHeader className='pb-3'>
+                  <div className='flex items-center justify-between'>
+                    <CardTitle className='text-lg flex items-center gap-2'>
+                      <FileText className='h-5 w-5' />
+                      Video Summary
+                    </CardTitle>
+                    <div className='flex gap-2'>
+                      {summary ? (
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => copyToClipboard(summary)}
+                        >
+                          {copied ? (
+                            <Check className='h-4 w-4 text-green-600' />
+                          ) : (
+                            <Copy className='h-4 w-4' />
+                          )}
+                        </Button>
+                      ) : null}
+                      <Button
+                        size='sm'
+                        onClick={handleGenerateSummary}
+                        disabled={isGeneratingSummary}
+                      >
+                        {isGeneratingSummary ? (
+                          <>
+                            <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className='h-4 w-4 mr-2' />
+                            Generate Summary
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <p className='text-sm text-muted-foreground mb-3'>
-                    This area will contain an AI-generated summary of the video
-                    content, key points, and important timestamps once the video
-                    is analyzed.
-                  </p>
-                  <div className='flex flex-wrap gap-2'>
-                    <Badge variant='outline'>#tutorial</Badge>
-                    <Badge variant='outline'>#educational</Badge>
-                    <Badge variant='outline'>#programming</Badge>
-                  </div>
+                  {summary ? (
+                    <div className='space-y-3'>
+                      <div className='bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap'>
+                        {summary}
+                      </div>
+                      <div className='flex flex-wrap gap-2'>
+                        <Badge variant='outline'>#ai-generated</Badge>
+                        <Badge variant='outline'>#video-summary</Badge>
+                        <Badge variant='outline'>#key-points</Badge>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className='space-y-3'>
+                      <p className='text-sm text-muted-foreground'>
+                        This area will contain an AI-generated summary of the
+                        video content, key points, and important timestamps once
+                        you generate it.
+                      </p>
+                      <div className='flex flex-wrap gap-2'>
+                        <Badge variant='outline'>#tutorial</Badge>
+                        <Badge variant='outline'>#educational</Badge>
+                        <Badge variant='outline'>#programming</Badge>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -208,7 +231,7 @@ export const TimestampsPage = () => {
                     className='flex items-center gap-2'
                   >
                     <FileText className='h-4 w-4' />
-                    Notes ({3})
+                    Notes
                   </TabsTrigger>
                   <TabsTrigger value='ai' className='flex items-center gap-2'>
                     <Bot className='h-4 w-4' />
@@ -217,26 +240,13 @@ export const TimestampsPage = () => {
                 </TabsList>
 
                 <TabsContent value='notes' className='flex-1 mt-4'>
-                  <NotesPanel
-                    videoId={videoId}
-                    onAddNote={() => {
-                      setIsFloatingNoteOpen(true);
-                      setActiveNote('');
-                    }}
-                  />
+                  <NotesPanel videoId={videoId} />
                 </TabsContent>
 
                 <TabsContent value='ai' className='flex-1 mt-4'>
                   <AIChat
-                    videoTitle='abc'
-                    currentTimestamp={new Date().getTime() / 1000}
-                    onAskAboutTimestamp={(timestamp, question) => {
-                      console.log(
-                        'AI question at timestamp:',
-                        timestamp,
-                        question,
-                      );
-                    }}
+                    videoId={videoId}
+                    currentTimestamp={Date.now() / 1000}
                   />
                 </TabsContent>
               </Tabs>

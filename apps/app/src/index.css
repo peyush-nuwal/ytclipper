@@ -165,64 +165,264 @@
   }
 }
 
-/* Custom scrollbar styles */
-.custom-scrollbar::-webkit-scrollbar {
+/* Scrollbar Styles */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f1f1;
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
   border-radius: 3px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground));
+}
+
+/* Markdown Editor Styles */
+.w-md-editor {
+  border-radius: 0.375rem !important;
+  border: 1px solid hsl(var(--border)) !important;
+  background-color: hsl(var(--background)) !important;
+  font-family: inherit !important;
+}
+
+.w-md-editor-toolbar {
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  background-color: hsl(var(--muted)) !important;
+  padding: 8px !important;
+}
+
+.w-md-editor-toolbar-divider {
+  background-color: hsl(var(--border)) !important;
+}
+
+.w-md-editor-toolbar-item {
+  color: hsl(var(--muted-foreground)) !important;
+  border-radius: 0.25rem !important;
+  padding: 4px 6px !important;
+}
+
+.w-md-editor-toolbar-item:hover {
+  background-color: hsl(var(--accent)) !important;
+  color: hsl(var(--accent-foreground)) !important;
+}
+
+.w-md-editor-toolbar-item.active {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.w-md-editor-text {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.w-md-editor-text-input {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  padding: 16px !important;
+}
+
+.w-md-editor-text-pre {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+.w-md-editor-preview {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  padding: 16px !important;
+  font-family: inherit !important;
+}
+
+.w-md-editor-preview h1,
+.w-md-editor-preview h2,
+.w-md-editor-preview h3,
+.w-md-editor-preview h4,
+.w-md-editor-preview h5,
+.w-md-editor-preview h6 {
+  color: hsl(var(--foreground)) !important;
+  font-weight: 600 !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.w-md-editor-preview h1 {
+  font-size: 1.875rem !important;
+  line-height: 2.25rem !important;
+}
+
+.w-md-editor-preview h2 {
+  font-size: 1.5rem !important;
+  line-height: 2rem !important;
+}
+
+.w-md-editor-preview h3 {
+  font-size: 1.25rem !important;
+  line-height: 1.75rem !important;
+}
+
+.w-md-editor-preview p {
+  margin-bottom: 1rem !important;
+  line-height: 1.6 !important;
+}
+
+.w-md-editor-preview code {
+  background-color: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+  padding: 0.125rem 0.25rem !important;
+  border-radius: 0.25rem !important;
+  font-size: 0.875rem !important;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+}
+
+.w-md-editor-preview pre {
+  background-color: hsl(var(--muted)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 0.375rem !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+  overflow-x: auto !important;
+}
+
+.w-md-editor-preview pre code {
+  background-color: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+.w-md-editor-preview blockquote {
+  border-left: 4px solid hsl(var(--border)) !important;
+  padding-left: 1rem !important;
+  margin: 1rem 0 !important;
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.w-md-editor-preview ul,
+.w-md-editor-preview ol {
+  margin: 1rem 0 !important;
+  padding-left: 1.5rem !important;
+}
+
+.w-md-editor-preview li {
+  margin-bottom: 0.25rem !important;
+}
+
+.w-md-editor-preview a {
+  color: hsl(var(--primary)) !important;
+  text-decoration: underline !important;
+}
+
+.w-md-editor-preview a:hover {
+  color: hsl(var(--primary)) !important;
+  opacity: 0.8 !important;
+}
+
+.w-md-editor-preview strong {
+  font-weight: 600 !important;
+}
+
+.w-md-editor-preview em {
+  font-style: italic !important;
+}
+
+/* Markdown Preview Styles */
+.w-md-editor-preview .wmde-markdown {
+  background-color: transparent !important;
+}
+
+/* Notes panel specific styles */
+.notes-panel {
+  background-color: hsl(var(--notes-bg));
+}
+
+/* Video player styles */
+.video-player {
+  background-color: hsl(var(--video-bg));
+}
+
+/* Timestamp highlight styles */
+.timestamp-highlight {
+  background-color: hsl(var(--timestamp) / 0.1);
+  border-color: hsl(var(--timestamp));
+}
+
+/* Animation for note expansion */
+.note-expand-enter {
+  max-height: 0;
+  opacity: 0;
+}
+
+.note-expand-enter-active {
+  max-height: 500px;
+  opacity: 1;
+  transition:
+    max-height 300ms ease-in-out,
+    opacity 300ms ease-in-out;
+}
+
+.note-expand-exit {
+  max-height: 500px;
+  opacity: 1;
+}
+
+.note-expand-exit-active {
+  max-height: 0;
+  opacity: 0;
+  transition:
+    max-height 300ms ease-in-out,
+    opacity 300ms ease-in-out;
+}
+
+/* Custom scrollbar for ScrollArea component */
+[data-radix-scroll-area-viewport] {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+[data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+[data-radix-scroll-area-viewport]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
   border-radius: 3px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+[data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground));
 }
 
-/* Smooth transitions for interactive elements */
-.transition-all {
-  transition: all 0.2s ease-in-out;
-}
-
-/* Text truncation utilities */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* YouTube player responsive container */
-.youtube-container {
-  position: relative;
-  width: 100%;
-  height: 0;
-  padding-bottom: 56.25%; /* 16:9 aspect ratio */
-  overflow: hidden;
-  border-radius: 0.5rem;
-  background: #000;
-}
-
-.youtube-container iframe {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
+/* Ensure proper height for notes panel */
+.notes-panel-container {
   height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.test-class {
-  @apply bg-red-500 text-white p-4;
+.notes-list-container {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
 }

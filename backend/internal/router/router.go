@@ -96,10 +96,13 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 		{
 			timestampRoutes := protected.Group("/timestamps")
 			{
+				timestampRoutes.GET("", timestampHandlers.GetAllTimestamps)
 				timestampRoutes.GET("/", timestampHandlers.GetAllTimestamps)
+				timestampRoutes.POST("", timestampHandlers.CreateTimestamp)
 				timestampRoutes.POST("/", timestampHandlers.CreateTimestamp)
 				timestampRoutes.GET("/:id", timestampHandlers.GetTimestampsByVideoID)
 				timestampRoutes.DELETE("/:id", timestampHandlers.DeleteTimestamp)
+				timestampRoutes.DELETE("", timestampHandlers.DeleteMultipleTimestamps)
 				timestampRoutes.DELETE("/", timestampHandlers.DeleteMultipleTimestamps)
 				timestampRoutes.GET("/tags", timestampHandlers.GetAllTags)
 				timestampRoutes.POST("/tags/search", timestampHandlers.SearchTags)
@@ -110,12 +113,8 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 				timestampRoutes.GET("/embeddings/status", timestampHandlers.GetEmbeddingStatus)
 				timestampRoutes.POST("/embeddings/process-user", timestampHandlers.ProcessMissingEmbeddingsForUser)
 				timestampRoutes.POST("/embeddings/process-all", timestampHandlers.ProcessAllMissingEmbeddings)
-			}
-
-			videoRoutes := protected.Group("/videos")
-			{
-				videoRoutes.GET("/", timestampHandlers.GetAllVideosWithTimestamps)
-				videoRoutes.GET("/recent", timestampHandlers.GetRecentTimestamps)
+				timestampRoutes.GET("/videos", timestampHandlers.GetAllVideosWithTimestamps)
+				timestampRoutes.GET("/recent", timestampHandlers.GetRecentTimestamps)
 			}
 		}
 	}

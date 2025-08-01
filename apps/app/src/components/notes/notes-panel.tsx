@@ -1,7 +1,22 @@
-import { useGetTimestampsQuery } from '@/services/timestamps';
+import {
+  useCreateTimestampMutation,
+  useDeleteTimestampMutation,
+  useGetAllTagsQuery,
+  useGetTimestampsQuery,
+  useUpdateTimestampMutation,
+} from '@/services/timestamps';
 import { useAppSelector } from '@/store/hooks';
 import MarkdownPreview from '@uiw/react-markdown-preview';
+import MDEditor from '@uiw/react-md-editor';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   Badge,
   Button,
   Card,
@@ -16,37 +31,65 @@ import {
   Input,
   ScrollArea,
 } from '@ytclipper/ui';
-import { Clock, Download, Edit, Hash, Plus, X } from 'lucide-react';
-import { useState } from 'react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Download,
+  Edit,
+  Eye,
+  EyeOff,
+  FileText,
+  Hash,
+  Loader2,
+  Plus,
+  Save,
+  Tag,
+  X,
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
 
-export interface Note {
+interface Timestamp {
   id: string;
   timestamp: number;
   title: string;
   note: string;
   tags: string[];
-  createdAt: Date;
+  created_at: string;
 }
 
 interface NotesPanelProps {
   videoId: string;
-  onAddNote: (note: Omit<Note, 'id' | 'createdAt'>) => void;
+  onPauseVideo?: () => void;
+  onResumeVideo?: () => void;
 }
 
-export const NotesPanel = ({ videoId, onAddNote }: NotesPanelProps) => {
+export const NotesPanel = ({
+  videoId,
+  onPauseVideo,
+  onResumeVideo,
+}: NotesPanelProps) => {
   const [isAddingNote, setIsAddingNote] = useState(false);
-  const [editingNote, setEditingNote] = useState<string | null>(null);
+  const [isEditingNote, setIsEditingNote] = useState<string | null>(null);
   const [expandedNoteIds, setExpandedNoteIds] = useState<string[]>([]);
+  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [newNote, setNewNote] = useState({
     timestamp: 0,
     title: '',
     note: '',
     tags: [] as string[],
   });
+  const [editingNote, setEditingNote] = useState({
+    title: '',
+    note: '',
+    tags: [] as string[],
+  });
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const timeStampsSliceData = useAppSelector((state) => state.timestamps);
   const currentTime = timeStampsSliceData.currentTimestamp;
   const videoTitle = timeStampsSliceData.videoTitle;
   const [tagInput, setTagInput] = useState('');
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
 
   const {
     data: timestampsData,
@@ -54,7 +97,20 @@ export const NotesPanel = ({ videoId, onAddNote }: NotesPanelProps) => {
     refetch,
   } = useGetTimestampsQuery(videoId || '');
 
-  const notes = timestampsData?.data.timestamps || [];
+  const { data: tagsData } = useGetAllTagsQuery({ limit: 100 });
+  const availableTags = tagsData?.data?.tags || [];
+
+  const [createTimestamp, { isLoading: isCreating }] =
+    useCreateTimestampMutation();
+  const [updateTimestamp, { isLoading: isUpdating }] =
+    useUpdateTimestampMutation();
+  const [deleteTimestamp, { isLoading: isDeleting }] =
+    useDeleteTimestampMutation();
+
+  const notes = useMemo(
+    () => timestampsData?.data.timestamps || [],
+    [timestampsData?.data.timestamps],
+  );
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -62,41 +118,93 @@ export const NotesPanel = ({ videoId, onAddNote }: NotesPanelProps) => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const handleAddNote = () => {
+  const handleAddNote = async () => {
     if (newNote.title.trim()) {
-      onAddNote({
-        ...newNote,
-        timestamp: newNote.timestamp || currentTime,
-      });
-      setNewNote({ timestamp: 0, title: '', note: '', tags: [] });
-      setIsAddingNote(false);
+      try {
+        await createTimestamp({
+          video_id: videoId,
+          timestamp: currentTime,
+          title: newNote.title,
+          note: newNote.note,
+          tags: newNote.tags,
+        }).unwrap();
+
+        setNewNote({ timestamp: 0, title: '', note: '', tags: [] });
+        setIsAddingNote(false);
+        onResumeVideo?.();
+        refetch();
+      } catch (error) {
+        console.error('Failed to create note:', error);
+      }
     }
   };
 
-  const addTag = () => {
-    if (tagInput.trim() && !newNote.tags.includes(tagInput.trim())) {
-      setNewNote((prev) => ({
-        ...prev,
-        tags: [...prev.tags, tagInput.trim()],
-      }));
-      setTagInput('');
+  const handleUpdateNote = async (id: string) => {
+    try {
+      await updateTimestamp({
+        id,
+        data: {
+          title: editingNote.title,
+          note: editingNote.note,
+          tags: editingNote.tags,
+        },
+      }).unwrap();
+      setIsEditingNote(null);
+      setEditingNote({ title: '', note: '', tags: [] });
+      setIsPreviewMode(false);
+      refetch();
+    } catch (error) {
+      console.error('Failed to update note:', error);
     }
   };
 
-  const removeTag = (tagToRemove: string) => {
-    setNewNote((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((tag) => tag !== tagToRemove),
-    }));
+  const handleDeleteNote = async (id: string) => {
+    try {
+      await deleteTimestamp(id).unwrap();
+      setNoteToDelete(null);
+      refetch();
+    } catch (error) {
+      console.error('Failed to delete note:', error);
+    }
+  };
+
+  const startEditing = (note: Timestamp) => {
+    setIsEditingNote(note.id);
+    setEditingNote({
+      title: note.title,
+      note: note.note,
+      tags: note.tags,
+    });
+    setIsPreviewMode(false);
+  };
+
+  const addTag = (tags: string[], setTags: (tags: string[]) => void) => {
+    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
+      setTags([...tags, tagInput.trim()]);
+    }
+    setTagInput('');
+    setShowTagSuggestions(false);
+  };
+
+  const removeTag = (
+    tagToRemove: string,
+    tags: string[],
+    setTags: (tags: string[]) => void,
+  ) => {
+    setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
   const getCurrentNote = () => {
-    return notes.find(
-      (note) => Math.abs(note.timestamp - currentTime) < 5, // Within 5 seconds
-    );
+    return notes.find((note) => Math.abs(note.timestamp - currentTime) < 5);
   };
 
-  // Markdown export functionality
+  const filteredTags = availableTags.filter(
+    (tag) =>
+      tag.name.toLowerCase().includes(tagInput.toLowerCase()) &&
+      !newNote.tags.includes(tag.name) &&
+      !editingNote.tags.includes(tag.name),
+  );
+
   const exportToMarkdown = () => {
     const formatMarkdownTime = (seconds: number) => {
       const minutes = Math.floor(seconds / 60);
@@ -146,7 +254,7 @@ export const NotesPanel = ({ videoId, onAddNote }: NotesPanelProps) => {
           markdown += `**Tags:** ${note.tags.map((tag) => `\`${tag}\``).join(', ')}\n\n`;
         }
 
-        markdown += `**Created:** ${note.created_at.toLocaleString()}\n\n`;
+        markdown += `**Created:** ${note.created_at}\n\n`;
         markdown += `---\n\n`;
       });
 
@@ -174,60 +282,91 @@ export const NotesPanel = ({ videoId, onAddNote }: NotesPanelProps) => {
 
   const currentNote = getCurrentNote();
 
+  const handleOpenAddNote = () => {
+    setIsAddingNote(true);
+    onPauseVideo?.();
+  };
+
+  const handleCloseAddNote = () => {
+    setIsAddingNote(false);
+    onResumeVideo?.();
+  };
+
+  const toggleNoteExpansion = (noteId: string) => {
+    setExpandedNoteIds((prev) =>
+      prev.includes(noteId)
+        ? prev.filter((id) => id !== noteId)
+        : [...prev, noteId],
+    );
+  };
+
   return (
-    <div className='flex flex-col h-full min-h-0 bg-notes-bg overflow-hidden'>
-      <div className='p-4 border-b bg-card'>
+    <div className='w-80 h-full bg-white border-l border-gray-200 flex flex-col min-w-0'>
+      {/* Header */}
+      <div className='p-4 border-b border-gray-200 bg-white flex-shrink-0'>
         <div className='flex items-center justify-between'>
-          <div>
-            <h2 className='text-lg font-semibold'>Video Notes</h2>
-            <p className='text-sm text-muted-foreground'>
+          <div className='min-w-0 flex-1'>
+            <h2 className='text-lg font-semibold text-gray-900 flex items-center gap-2'>
+              <FileText className='h-5 w-5 text-gray-600 flex-shrink-0' />
+              <span className='truncate'>Video Notes</span>
+            </h2>
+            <p className='text-sm text-gray-600 mt-1 truncate'>
               {notes.length} notes • Current:{' '}
               {formatTime(timeStampsSliceData.currentTimestamp)}
             </p>
           </div>
-          <div className='flex gap-2'>
+          <div className='flex gap-2 flex-shrink-0 ml-2'>
             {notes.length > 0 && (
-              <Button variant='outline' size='sm' onClick={exportToMarkdown}>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={exportToMarkdown}
+                className='px-2'
+              >
                 <Download className='h-4 w-4' />
-                Export MD
               </Button>
             )}
-            <Dialog open={isAddingNote} onOpenChange={setIsAddingNote}>
+            <Dialog open={isAddingNote} onOpenChange={handleCloseAddNote}>
               <DialogTrigger asChild>
-                <Button variant='default' size='sm'>
+                <Button
+                  variant='default'
+                  size='sm'
+                  onClick={handleOpenAddNote}
+                  className='px-2'
+                >
                   <Plus className='h-4 w-4' />
-                  Add Note
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className='max-w-4xl max-h-[90vh] overflow-y-auto'>
                 <DialogHeader>
                   <DialogTitle>Add New Note</DialogTitle>
                 </DialogHeader>
                 <div className='space-y-4'>
                   <div>
-                    <label htmlFor='markdown' className='text-sm font-medium'>
-                      Timestamp
+                    <label
+                      htmlFor='timestamp'
+                      className='text-sm font-medium text-gray-700 mb-2 block'
+                    >
+                      Timestamp (Current Video Time)
                     </label>
                     <Input
-                      id='markdown'
-                      type='number'
-                      placeholder={`${currentTime}`}
-                      value={newNote.timestamp || currentTime}
-                      onChange={(e) =>
-                        setNewNote((prev) => ({
-                          ...prev,
-                          timestamp: Number(e.target.value),
-                        }))
-                      }
+                      id='timestamp'
+                      type='text'
+                      value={formatTime(currentTime)}
+                      disabled
+                      className='bg-gray-50 border-gray-300 text-gray-700 font-mono'
                     />
                   </div>
                   <div>
-                    <label htmlFor='title' className='text-sm font-medium'>
+                    <label
+                      htmlFor='title'
+                      className='text-sm font-medium text-gray-700 mb-2 block'
+                    >
                       Title
                     </label>
                     <Input
                       id='title'
-                      placeholder='Note title...'
+                      placeholder='Enter a descriptive title for your note...'
                       value={newNote.title}
                       onChange={(e) =>
                         setNewNote((prev) => ({
@@ -238,44 +377,106 @@ export const NotesPanel = ({ videoId, onAddNote }: NotesPanelProps) => {
                     />
                   </div>
                   <div>
-                    <label htmlFor='note' className='text-sm font-medium'>
-                      Note
+                    <label
+                      htmlFor='note'
+                      className='text-sm font-medium text-gray-700 mb-2 block'
+                    >
+                      Note Content (Markdown Editor)
                     </label>
-                    {/* <MDXEditor
-                      markdown={newNote.note}
-                      plugins={[
-                        headingsPlugin(),
-                        listsPlugin(),
-                        quotePlugin(),
-                        thematicBreakPlugin(),
-                      ]}
-                      onChange={(value) =>
-                        setNewNote((prev) => ({
-                          ...prev,
-                          note: value,
-                        }))
-                      }
-                      className='border rounded-md min-h-[120px] p-2 max-h-[300px] overflow-y-auto'
-                      placeholder='Write markdown or LaTeX here...'
-                    /> */}
+                    <div className='border border-gray-300 rounded-lg overflow-hidden'>
+                      <MDEditor
+                        value={newNote.note}
+                        onChange={(value) =>
+                          setNewNote((prev) => ({
+                            ...prev,
+                            note: value || '',
+                          }))
+                        }
+                        height={300}
+                        preview='live'
+                        className='w-full'
+                      />
+                    </div>
+                    <p className='text-xs text-gray-500 mt-2'>
+                      💡 Supports markdown: **bold**, *italic*, `code`,
+                      [links](url), headers, lists, and more
+                    </p>
                   </div>
-                  <div>
-                    <label htmlFor='tags' className='text-sm font-medium'>
+                  <div className='relative'>
+                    <label
+                      htmlFor='tags'
+                      className='text-sm font-medium text-gray-700 mb-2 block'
+                    >
                       Tags
                     </label>
                     <div className='flex gap-2'>
                       <Input
                         id='tags'
-                        placeholder='Add tag...'
+                        placeholder='Search existing tags or create new ones...'
                         value={tagInput}
-                        onChange={(e) => setTagInput(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && addTag()}
+                        onChange={(e) => {
+                          setTagInput(e.target.value);
+                          setShowTagSuggestions(e.target.value.length > 0);
+                        }}
+                        onKeyPress={(e) =>
+                          e.key === 'Enter' &&
+                          addTag(newNote.tags, (tags) =>
+                            setNewNote((prev) => ({ ...prev, tags })),
+                          )
+                        }
                       />
-                      <Button type='button' variant='outline' onClick={addTag}>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        onClick={() =>
+                          addTag(newNote.tags, (tags) =>
+                            setNewNote((prev) => ({ ...prev, tags })),
+                          )
+                        }
+                      >
                         <Hash className='h-4 w-4' />
                       </Button>
                     </div>
-                    <div className='flex flex-wrap gap-1 mt-2'>
+
+                    {showTagSuggestions ? (
+                      <div className='absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto'>
+                        {filteredTags.map((tag) => (
+                          <button
+                            key={tag.id}
+                            type='button'
+                            onClick={() =>
+                              addTag(newNote.tags, (tags) =>
+                                setNewNote((prev) => ({ ...prev, tags })),
+                              )
+                            }
+                            className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0'
+                          >
+                            <Tag className='h-4 w-4 text-gray-400' />
+                            <span className='text-gray-700'>{tag.name}</span>
+                          </button>
+                        ))}
+                        {tagInput &&
+                        !filteredTags.some(
+                          (tag) =>
+                            tag.name.toLowerCase() === tagInput.toLowerCase(),
+                        ) ? (
+                          <button
+                            type='button'
+                            onClick={() =>
+                              addTag(newNote.tags, (tags) =>
+                                setNewNote((prev) => ({ ...prev, tags })),
+                              )
+                            }
+                            className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-blue-600 border-b border-gray-100 last:border-b-0'
+                          >
+                            <Plus className='h-4 w-4' />
+                            <span>Create &ldquo;{tagInput}&rdquo;</span>
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div className='flex flex-wrap gap-2 mt-3'>
                       {newNote.tags.map((tag) => (
                         <Badge
                           key={tag}
@@ -287,7 +488,11 @@ export const NotesPanel = ({ videoId, onAddNote }: NotesPanelProps) => {
                             variant='ghost'
                             size='sm'
                             className='h-auto p-0 ml-1'
-                            onClick={() => removeTag(tag)}
+                            onClick={() =>
+                              removeTag(tag, newNote.tags, (tags) =>
+                                setNewNote((prev) => ({ ...prev, tags })),
+                              )
+                            }
                           >
                             <X className='h-3 w-3' />
                           </Button>
@@ -295,14 +500,22 @@ export const NotesPanel = ({ videoId, onAddNote }: NotesPanelProps) => {
                       ))}
                     </div>
                   </div>
-                  <div className='flex gap-2'>
-                    <Button onClick={handleAddNote} className='flex-1'>
-                      Add Note
-                    </Button>
+                  <div className='flex gap-3 pt-4'>
                     <Button
-                      variant='outline'
-                      onClick={() => setIsAddingNote(false)}
+                      onClick={handleAddNote}
+                      className='flex-1'
+                      disabled={isCreating}
                     >
+                      {isCreating ? (
+                        <>
+                          <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                          Creating Note...
+                        </>
+                      ) : (
+                        'Create Note'
+                      )}
+                    </Button>
+                    <Button variant='outline' onClick={handleCloseAddNote}>
                       Cancel
                     </Button>
                   </div>
@@ -313,137 +526,477 @@ export const NotesPanel = ({ videoId, onAddNote }: NotesPanelProps) => {
         </div>
       </div>
 
+      {/* Current Note Highlight */}
       {currentNote ? (
-        <Card className='m-4 bg-timestamp/10 border-timestamp'>
-          <CardHeader className='pb-2'>
-            <div className='flex items-center justify-between'>
-              <CardTitle className='text-sm font-medium'>
-                Current Note
-              </CardTitle>
-              <Badge variant='outline' className='text-timestamp'>
-                <Clock className='h-3 w-3 mr-1' />
-                {formatTime(currentNote.timestamp)}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <h3 className='font-medium mb-1'>{currentNote.title}</h3>
-            <p className='text-sm text-muted-foreground mb-2'>
-              {currentNote.note}
-            </p>
-            <div className='flex flex-wrap gap-1'>
-              {currentNote.tags.map((tag) => (
-                <Badge key={tag} variant='secondary' className='text-xs'>
-                  {tag}
+        <div className='mx-4 mt-4 flex-shrink-0'>
+          <Card className='bg-blue-50 border-blue-200'>
+            <CardHeader className='pb-3'>
+              <div className='flex items-center justify-between'>
+                <CardTitle className='text-sm font-semibold text-blue-900'>
+                  🎯 Current Note
+                </CardTitle>
+                <Badge
+                  variant='outline'
+                  className='text-blue-700 border-blue-300 bg-blue-100'
+                >
+                  <Clock className='h-3 w-3 mr-1' />
+                  {formatTime(currentNote.timestamp)}
                 </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <h3 className='font-semibold text-gray-900 mb-2 truncate'>
+                {currentNote.title}
+              </h3>
+              <div className='text-sm text-gray-700 mb-3'>
+                <MDEditor.Markdown source={currentNote.note} />
+              </div>
+              <div className='flex flex-wrap gap-1'>
+                {currentNote.tags.map((tag) => (
+                  <Badge key={tag} variant='secondary' className='text-xs'>
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : null}
 
-      <div className='flex-1 flex flex-col'>
-        <ScrollArea className='flex-1 p-2 max-h-[calc(100vh-32px-148px)]'>
-          <div className='space-y-3 min-h-0'>
+      {/* Notes List */}
+      <div className='flex-1 overflow-hidden'>
+        <ScrollArea className='h-full p-4'>
+          <div className='space-y-3'>
             {timestampsLoading ? (
-              <div className='text-center py-8 text-muted-foreground'>
-                <Clock className='h-12 w-12 mx-auto mb-4 opacity-30' />
-                <p>Loading notes...</p>
-              </div>
-            ) : null}
-
-            {notes.length === 0 && !timestampsLoading ? (
-              <div className='text-center py-8 text-muted-foreground'>
-                <Clock className='h-12 w-12 mx-auto mb-4 opacity-30' />
-                <p>No notes yet</p>
-                <p className='text-sm'>
-                  Click Add Note to create your first note
+              <div className='text-center py-8'>
+                <div className='inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-4'>
+                  <Clock className='h-6 w-6 text-gray-600 animate-pulse' />
+                </div>
+                <p className='text-gray-600 font-medium'>
+                  Loading your notes...
+                </p>
+                <p className='text-sm text-gray-500 mt-1'>
+                  This won&apos;t take long
                 </p>
               </div>
             ) : null}
 
-            {notes.length
-              ? notes.map((note) => {
-                  const isExpanded = expandedNoteIds.includes(note.id);
-                  return (
-                    <Card
-                      key={note.id}
-                      className={`cursor-pointer p-0 transition-all hover:shadow-md ${
-                        note.id === currentNote?.id
-                          ? 'ring-2 ring-timestamp'
-                          : ''
-                      }`}
-                      onClick={() => {
-                        setExpandedNoteIds((prev) =>
-                          isExpanded
-                            ? prev.filter((id) => id !== note.id)
-                            : [...prev, note.id],
-                        );
-                      }}
-                    >
-                      <CardContent className='p-4'>
-                        <div className='flex items-start justify-between mb-2'>
-                          <h3 className='font-medium mb-1 text-sm'>
-                            {note.title}
-                          </h3>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            className='h-auto p-1'
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingNote(note.id);
-                            }}
-                          >
-                            <Edit className='h-3 w-3' />
-                          </Button>
-                        </div>
-                        <div className='flex items-center gap-2 mb-2'>
-                          <Badge variant='outline' className='text-xs'>
-                            <Clock className='h-3 w-3 mr-1' />
-                            {formatTime(note.timestamp)}
-                          </Badge>
-                          {note.tags.length > 0 && (
-                            <div className='flex flex-wrap gap-1'>
-                              {note.tags.map((tag) => (
+            {notes.length === 0 && !timestampsLoading ? (
+              <div className='text-center py-8'>
+                <div className='inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-4'>
+                  <FileText className='h-6 w-6 text-gray-400' />
+                </div>
+                <p className='text-gray-600 font-medium'>No notes yet</p>
+                <p className='text-sm text-gray-500 mt-1'>
+                  Start taking notes to see them here
+                </p>
+              </div>
+            ) : null}
+
+            {notes.length > 0 &&
+              notes.map((note) => {
+                const isExpanded = expandedNoteIds.includes(note.id);
+                const isCurrent = note.id === currentNote?.id;
+
+                return (
+                  <Card
+                    key={note.id}
+                    className={`transition-all duration-300 hover:shadow-md border ${
+                      isCurrent
+                        ? 'ring-2 ring-blue-500 border-blue-200 bg-blue-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <CardContent className='p-0'>
+                      {/* Note Header */}
+                      <div
+                        className='p-4 cursor-pointer hover:bg-gray-50 transition-colors'
+                        onClick={() => toggleNoteExpansion(note.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleNoteExpansion(note.id);
+                          }
+                        }}
+                        role='button'
+                        tabIndex={0}
+                      >
+                        <div className='flex items-start justify-between'>
+                          <div className='flex-1 min-w-0'>
+                            <div className='flex items-center gap-3 mb-2'>
+                              <h3 className='font-semibold text-gray-900 truncate'>
+                                {note.title}
+                              </h3>
+                              {isCurrent ? (
                                 <Badge
-                                  key={tag}
                                   variant='secondary'
-                                  className='text-xs'
+                                  className='text-xs bg-blue-100 text-blue-800 border-blue-200 flex-shrink-0'
                                 >
-                                  {tag}
+                                  Current
                                 </Badge>
-                              ))}
+                              ) : null}
                             </div>
+                            <div className='flex items-center gap-2 text-sm text-gray-500'>
+                              <Clock className='h-4 w-4 flex-shrink-0' />
+                              <span className='font-mono'>
+                                {formatTime(note.timestamp)}
+                              </span>
+                              {note.tags.length > 0 && (
+                                <>
+                                  <span>•</span>
+                                  <span>{note.tags.length} tags</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className='flex items-center gap-1 ml-4 flex-shrink-0'>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-8 w-8 p-0 hover:bg-gray-200'
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEditing(note);
+                              }}
+                              disabled={isUpdating}
+                            >
+                              {isUpdating ? (
+                                <Loader2 className='h-4 w-4 animate-spin' />
+                              ) : (
+                                <Edit className='h-4 w-4' />
+                              )}
+                            </Button>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-8 w-8 p-0 hover:bg-red-100 text-red-600'
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setNoteToDelete(note.id);
+                              }}
+                              disabled={isDeleting}
+                            >
+                              {isDeleting ? (
+                                <Loader2 className='h-4 w-4 animate-spin' />
+                              ) : (
+                                <X className='h-4 w-4' />
+                              )}
+                            </Button>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-8 w-8 p-0 hover:bg-gray-200'
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleNoteExpansion(note.id);
+                              }}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className='h-4 w-4' />
+                              ) : (
+                                <ChevronRight className='h-4 w-4' />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Tags */}
+                        {note.tags.length > 0 && (
+                          <div className='flex flex-wrap gap-1 mt-3'>
+                            {note.tags.map((tag) => (
+                              <Badge
+                                key={tag}
+                                variant='secondary'
+                                className='text-xs'
+                              >
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Expandable Content */}
+                      <div
+                        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                          isExpanded
+                            ? 'max-h-[1000px] opacity-100'
+                            : 'max-h-0 opacity-0'
+                        }`}
+                      >
+                        <div className='border-t border-gray-100 p-4 bg-gray-50'>
+                          {note.note ? (
+                            <div className='prose prose-sm max-w-none'>
+                              <MDEditor.Markdown source={note.note} />
+                            </div>
+                          ) : (
+                            <p className='text-gray-500 italic'>
+                              No content added to this note yet.
+                            </p>
                           )}
                         </div>
-                        <div
-                          className={`transition-all duration-300 overflow-hidden ${
-                            isExpanded
-                              ? 'max-h-[500px] opacity-100'
-                              : 'max-h-0 opacity-0'
-                          }`}
-                        >
-                          {note.note ? (
-                            <div className='text-xs text-muted-foreground mb-2'>
-                              <MarkdownPreview
-                                className='bg-background'
-                                source={note.note}
-                                wrapperElement={{
-                                  'data-color-mode': 'light',
-                                }}
-                              />
-                            </div>
-                          ) : null}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              : null}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
           </div>
         </ScrollArea>
       </div>
+
+      {/* Edit Note Modal */}
+      <Dialog
+        open={!!isEditingNote}
+        onOpenChange={() => {
+          setIsEditingNote(null);
+          setEditingNote({ title: '', note: '', tags: [] });
+          setIsPreviewMode(false);
+        }}
+      >
+        <DialogContent className='max-w-6xl max-h-[95vh] overflow-hidden'>
+          <DialogHeader>
+            <DialogTitle className='flex items-center gap-2'>
+              <Edit className='h-5 w-5' />
+              Edit Note
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className='flex flex-col h-full space-y-4'>
+            {/* Title Input */}
+            <div>
+              <label
+                htmlFor='edit-title'
+                className='text-sm font-medium text-gray-700 mb-2 block'
+              >
+                Note Title
+              </label>
+              <Input
+                id='edit-title'
+                placeholder='Enter note title...'
+                value={editingNote.title}
+                onChange={(e) =>
+                  setEditingNote((prev) => ({ ...prev, title: e.target.value }))
+                }
+                className='text-lg font-semibold'
+              />
+            </div>
+
+            {/* Tags Section */}
+            <div className='relative'>
+              <label
+                htmlFor='edit-tags'
+                className='text-sm font-medium text-gray-700 mb-2 block'
+              >
+                Tags
+              </label>
+              <div className='flex gap-2'>
+                <Input
+                  id='edit-tags'
+                  placeholder='Search existing tags or create new ones...'
+                  value={tagInput}
+                  onChange={(e) => {
+                    setTagInput(e.target.value);
+                    setShowTagSuggestions(e.target.value.length > 0);
+                  }}
+                  onKeyPress={(e) =>
+                    e.key === 'Enter' &&
+                    addTag(editingNote.tags, (tags) =>
+                      setEditingNote((prev) => ({ ...prev, tags })),
+                    )
+                  }
+                />
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() =>
+                    addTag(editingNote.tags, (tags) =>
+                      setEditingNote((prev) => ({ ...prev, tags })),
+                    )
+                  }
+                >
+                  <Hash className='h-4 w-4' />
+                </Button>
+              </div>
+
+              {showTagSuggestions ? (
+                <div className='absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto'>
+                  {filteredTags.map((tag) => (
+                    <button
+                      key={tag.id}
+                      type='button'
+                      onClick={() =>
+                        addTag(editingNote.tags, (tags) =>
+                          setEditingNote((prev) => ({ ...prev, tags })),
+                        )
+                      }
+                      className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0'
+                    >
+                      <Tag className='h-4 w-4 text-gray-400' />
+                      <span className='text-gray-700'>{tag.name}</span>
+                    </button>
+                  ))}
+                  {tagInput &&
+                  !filteredTags.some(
+                    (tag) => tag.name.toLowerCase() === tagInput.toLowerCase(),
+                  ) ? (
+                    <button
+                      type='button'
+                      onClick={() =>
+                        addTag(editingNote.tags, (tags) =>
+                          setEditingNote((prev) => ({ ...prev, tags })),
+                        )
+                      }
+                      className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-blue-600 border-b border-gray-100 last:border-b-0'
+                    >
+                      <Plus className='h-4 w-4' />
+                      <span>Create &ldquo;{tagInput}&rdquo;</span>
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className='flex flex-wrap gap-2 mt-3'>
+                {editingNote.tags.map((tag) => (
+                  <Badge key={tag} variant='secondary' className='text-sm'>
+                    {tag}
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='h-auto p-0 ml-1'
+                      onClick={() =>
+                        removeTag(tag, editingNote.tags, (tags) =>
+                          setEditingNote((prev) => ({ ...prev, tags })),
+                        )
+                      }
+                    >
+                      <X className='h-3 w-3' />
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            <div className='border-t border-gray-200 my-4' />
+
+            {/* Markdown Editor/Preview Toggle */}
+            <div className='flex items-center justify-between'>
+              <h3 className='text-lg font-semibold text-gray-900'>
+                Note Content
+              </h3>
+              <div className='flex items-center gap-2'>
+                <Button
+                  variant={!isPreviewMode ? 'default' : 'outline'}
+                  size='sm'
+                  onClick={() => setIsPreviewMode(false)}
+                >
+                  <Edit className='h-4 w-4 mr-2' />
+                  Edit
+                </Button>
+                <Button
+                  variant={isPreviewMode ? 'default' : 'outline'}
+                  size='sm'
+                  onClick={() => setIsPreviewMode(true)}
+                >
+                  {isPreviewMode ? (
+                    <>
+                      <Eye className='h-4 w-4 mr-2' />
+                      Preview
+                    </>
+                  ) : (
+                    <>
+                      <EyeOff className='h-4 w-4 mr-2' />
+                      Preview
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Markdown Editor/Preview */}
+            <div className='flex-1 min-h-0 border border-gray-300 rounded-lg overflow-hidden'>
+              {isPreviewMode ? (
+                <ScrollArea className='h-full'>
+                  <div className='p-6 bg-white'>
+                    <MarkdownPreview
+                      source={editingNote.note}
+                      wrapperElement={{
+                        'data-color-mode': 'light',
+                      }}
+                      className='w-full'
+                    />
+                  </div>
+                </ScrollArea>
+              ) : (
+                <MDEditor
+                  value={editingNote.note}
+                  onChange={(value) =>
+                    setEditingNote((prev) => ({ ...prev, note: value || '' }))
+                  }
+                  height='100%'
+                  preview='live'
+                  className='w-full h-full'
+                />
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className='flex gap-3 pt-4 border-t border-gray-200'>
+              <Button
+                onClick={() => isEditingNote && handleUpdateNote(isEditingNote)}
+                className='flex-1'
+                disabled={isUpdating || !isEditingNote}
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className='h-4 w-4 mr-2' />
+                    Save Changes
+                  </>
+                )}
+              </Button>
+              <Button
+                variant='outline'
+                onClick={() => {
+                  setIsEditingNote(null);
+                  setEditingNote({ title: '', note: '', tags: [] });
+                  setIsPreviewMode(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={!!noteToDelete}
+        onOpenChange={() => setNoteToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Note</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this note? This action cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => noteToDelete && handleDeleteNote(noteToDelete)}
+              className='bg-red-600 hover:bg-red-700'
+            >
+              Delete Note
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
