@@ -392,7 +392,7 @@ export const NotesPanel = ({
                     </div>
                   </div>
                   <div className='flex flex-col justify-between md:w-1/3 w-full'>
-                    <div className='flex flex-col gap-2 h-full overflow-scroll'>
+                    <div className='flex flex-col gap-2 h-full overflow-scroll px-2'>
                       <div>
                         <label
                           htmlFor='timestamp'
@@ -515,7 +515,7 @@ export const NotesPanel = ({
                         </div>
                       </div>
                     </div>
-                    <div className='flex justify-between gap-2'>
+                    <div className='flex justify-between gap-2 mt-4'>
                       <Button
                         onClick={handleAddNote}
                         className='flex-1'
@@ -584,7 +584,7 @@ export const NotesPanel = ({
       ) : null}
 
       <div className='flex-1 min-h-0'>
-        <ScrollArea className='h-[calc(100vh-250px)] relative p-4'>
+        <div className='flex-1 h-[calc(100vh-250px)] relative p-4 justify-center w-[100%] overflow-scroll'>
           {timestampsLoading ? (
             <div className='text-center py-8'>
               <div className='inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-4'>
@@ -627,7 +627,7 @@ export const NotesPanel = ({
                 >
                   <CardContent className='p-0'>
                     <div
-                      className='p-4 cursor-pointer hover:bg-gray-50 transition-colors rounded-2xl overflow-hidden'
+                      className='p-4 cursor-pointer hover:bg-gray-50 transition-colors rounded-2xl'
                       onClick={() => toggleNoteExpansion(note.id)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
@@ -638,7 +638,7 @@ export const NotesPanel = ({
                       role='button'
                       tabIndex={0}
                     >
-                      <div className='flex items-start justify-between'>
+                      <div className='flex-1 md:flex items-start justify-between space-y-2'>
                         <div className='flex-1 pr-2'>
                           <div className='flex items-center gap-3 mb-2'>
                             <h3 className='font-semibold text-gray-900 truncate flex-1 min-w-0'>
@@ -668,11 +668,11 @@ export const NotesPanel = ({
                             )}
                           </div>
                         </div>
-                        <div className='flex items-center gap-1 ml-4 flex-shrink-0'>
+                        <div className='flex items-center gap-1 flex-shrink-0 justify-center'>
                           <Button
                             variant='ghost'
                             size='sm'
-                            className='h-8 w-8 p-0 hover:bg-gray-200'
+                            className='h-8 min-w-8 w-full p-0 hover:bg-gray-200'
                             onClick={(e) => {
                               e.stopPropagation();
                               startEditing(note);
@@ -682,13 +682,16 @@ export const NotesPanel = ({
                             {isUpdating ? (
                               <Loader2 className='h-4 w-4 animate-spin' />
                             ) : (
-                              <Edit className='h-4 w-4' />
+                              <>
+                                <Edit className='h-4 w-4' />
+                                <div className='lg:hidden'>Edit</div>
+                              </>
                             )}
                           </Button>
                           <Button
                             variant='ghost'
                             size='sm'
-                            className='h-8 w-8 p-0 hover:bg-red-100 text-red-600'
+                            className='h-8 min-w-8 w-full p-0 hover:bg-red-100 text-red-600'
                             onClick={(e) => {
                               e.stopPropagation();
                               setNoteToDelete(note.id);
@@ -698,7 +701,10 @@ export const NotesPanel = ({
                             {isDeleting ? (
                               <Loader2 className='h-4 w-4 animate-spin' />
                             ) : (
-                              <Trash2 className='h-4 w-4' />
+                              <>
+                                <Trash2 className='h-4 w-4' />
+                                <div className='lg:hidden'>Delete</div>
+                              </>
                             )}
                           </Button>
                         </div>
@@ -748,7 +754,7 @@ export const NotesPanel = ({
                 </Card>
               );
             })}
-        </ScrollArea>
+        </div>
       </div>
 
       <Dialog
@@ -847,7 +853,7 @@ export const NotesPanel = ({
                       }
                       height='100%'
                       preview='live'
-                      className='w-full h-full min-h-[40vh]'
+                      className='w-full h-full min-h-[40vh] opacity-100'
                     />
                   )}
                 </div>
