@@ -6,11 +6,11 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-
 	"github.com/shubhamku044/ytclipper/internal/config"
 	"github.com/shubhamku044/ytclipper/internal/database"
 	"github.com/shubhamku044/ytclipper/internal/handlers"
 	authhandlers "github.com/shubhamku044/ytclipper/internal/handlers/auth"
+	"github.com/shubhamku044/ytclipper/internal/handlers/dashboard"
 	"github.com/shubhamku044/ytclipper/internal/handlers/timestamps"
 	"github.com/shubhamku044/ytclipper/internal/handlers/videos"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
@@ -48,6 +48,7 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 	oauthHandlers := authhandlers.NewOAuthHandlers(&cfg.Google, &cfg.Auth, jwtService, db, &cfg.Server)
 	timestampHandlers := timestamps.NewTimestampsHandlers(db, &cfg.OpenAI)
 	videoHandlers := videos.NewVideoHandlers(db)
+	dashboardHandlers := dashboard.NewDashboardHandlers(db)
 
 	r.NoRoute(func(c *gin.Context) {
 		middleware.RespondWithError(c, http.StatusNotFound, "NOT_FOUND", "The requested resource could not be found", gin.H{
@@ -98,6 +99,12 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 		{
 			timestamps.SetupTimestampRoutes(protected, timestampHandlers, authMiddleware)
 			videos.SetupVideoRoutes(protected, videoHandlers, authMiddleware)
+
+			// Dashboard endpoints
+			protected.GET("/dashboard/most-used-tags", dashboardHandlers.GetMostUsedTags)
+			protected.GET("/dashboard/recent-videos", dashboardHandlers.GetRecentVideos)
+			protected.GET("/dashboard/recent-activity", dashboardHandlers.GetRecentActivity)
+			protected.GET("/dashboard/recent-notes", dashboardHandlers.GetRecentNotes)
 		}
 	}
 

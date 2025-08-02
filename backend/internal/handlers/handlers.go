@@ -61,7 +61,7 @@ func DBHealthCheck(db *database.Database) gin.HandlerFunc {
 func VerifyToken(c *gin.Context) {
 	// This function is now handled by the auth handlers
 	// Redirect to the auth status endpoint
-	c.JSON(http.StatusOK, gin.H{
+	middleware.RespondWithOK(c, gin.H{
 		"message":  "Token verification is handled by auth handlers",
 		"endpoint": "/api/v1/auth/status",
 	})
@@ -70,7 +70,7 @@ func VerifyToken(c *gin.Context) {
 func GetUserProfile(c *gin.Context) {
 	// This function is now handled by the auth handlers
 	// Redirect to the auth user endpoint
-	c.JSON(http.StatusOK, gin.H{
+	middleware.RespondWithOK(c, gin.H{
 		"message":  "User profile is handled by auth handlers",
 		"endpoint": "/api/v1/auth/me",
 	})
@@ -79,12 +79,8 @@ func GetUserProfile(c *gin.Context) {
 func GetSession(c *gin.Context) {
 	// This function is now handled by the auth handlers
 	// Redirect to the auth session endpoint
-	c.JSON(http.StatusOK, gin.H{
+	middleware.RespondWithOK(c, gin.H{
 		"message":  "Session info is handled by auth handlers",
 		"endpoint": "/api/v1/auth/status",
 	})
-}
-
-func generateID() string {
-	return time.Now().Format("20060102150405") + "_" + time.Now().Format("000")
 }
