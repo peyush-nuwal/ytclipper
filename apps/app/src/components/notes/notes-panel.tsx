@@ -341,192 +341,201 @@ export const NotesPanel = ({
               Add Note
             </Button>
             <Dialog open={isAddingNote} onOpenChange={handleCloseAddNote}>
-              <DialogContent className='max-w-4xl max-h-[90vh] overflow-y-auto'>
+              <DialogContent className='w-full !max-w-4xl md:!w-[64rem] max-h-[90vh] overflow-y-auto'>
                 <DialogHeader>
                   <DialogTitle>Add New Note</DialogTitle>
                 </DialogHeader>
-                <div className='space-y-4'>
-                  <div>
-                    <label
-                      htmlFor='timestamp'
-                      className='text-sm font-medium text-gray-700 mb-2 block'
-                    >
-                      Timestamp (Current Video Time)
-                    </label>
-                    <Input
-                      id='timestamp'
-                      type='text'
-                      value={formatTime(currentTime)}
-                      disabled
-                      className='bg-gray-50 border-gray-300 text-gray-700 font-mono'
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor='title'
-                      className='text-sm font-medium text-gray-700 mb-2 block'
-                    >
-                      Title
-                    </label>
-                    <Input
-                      id='title'
-                      placeholder='Enter a descriptive title for your note...'
-                      value={newNote.title}
-                      onChange={(e) =>
-                        setNewNote((prev) => ({
-                          ...prev,
-                          title: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor='note'
-                      className='text-sm font-medium text-gray-700 mb-2 block'
-                    >
-                      Note Content (Markdown Editor)
-                    </label>
-                    <div className='border border-gray-300 rounded-lg overflow-hidden'>
-                      <MDEditor
-                        value={newNote.note}
-                        onChange={(value) =>
+                <div className='flex flex-col md:flex-row md:space-x-8 space-y-4 md:space-y-0 w-full'>
+                  <div className='flex-1 min-w-0 space-y-2'>
+                    <div>
+                      <label
+                        htmlFor='title'
+                        className='text-sm font-medium text-gray-700 mb-2 block'
+                      >
+                        Title
+                      </label>
+                      <Input
+                        id='title'
+                        placeholder='Enter a descriptive title for your note...'
+                        value={newNote.title}
+                        onChange={(e) =>
                           setNewNote((prev) => ({
                             ...prev,
-                            note: value || '',
+                            title: e.target.value,
                           }))
                         }
-                        height={300}
-                        preview='live'
-                        className='w-full'
                       />
                     </div>
-                    <p className='text-xs text-gray-500 mt-2'>
-                      💡 Supports markdown: **bold**, *italic*, `code`,
-                      [links](url), headers, lists, and more
-                    </p>
-                  </div>
-                  <div className='relative'>
-                    <label
-                      htmlFor='tags'
-                      className='text-sm font-medium text-gray-700 mb-2 block'
-                    >
-                      Tags
-                    </label>
-                    <div className='flex gap-2'>
-                      <Input
-                        id='tags'
-                        placeholder='Search existing tags or create new ones...'
-                        value={tagInput}
-                        onChange={(e) => {
-                          setTagInput(e.target.value);
-                          setShowTagSuggestions(e.target.value.length > 0);
-                        }}
-                        onKeyPress={(e) =>
-                          e.key === 'Enter' &&
-                          addTag(newNote.tags, (tags) =>
-                            setNewNote((prev) => ({ ...prev, tags })),
-                          )
-                        }
-                      />
-                      <Button
-                        type='button'
-                        variant='outline'
-                        onClick={() =>
-                          addTag(newNote.tags, (tags) =>
-                            setNewNote((prev) => ({ ...prev, tags })),
-                          )
-                        }
+                    <div className='flex-1 space-y-2'>
+                      <label
+                        htmlFor='note'
+                        className='text-sm font-medium text-gray-700 mb-2 block'
                       >
-                        <Hash className='h-4 w-4' />
-                      </Button>
+                        Note Content (Markdown Editor)
+                      </label>
+                      <p className='text-xs text-gray-500 mt-2'>
+                        💡 Supports markdown: **bold**, *italic*, `code`,
+                        [links](url), headers, lists, and more
+                      </p>
+                      <div className='border border-gray-300 rounded-lg overflow-hidden'>
+                        <MDEditor
+                          value={newNote.note}
+                          onChange={(value) =>
+                            setNewNote((prev) => ({
+                              ...prev,
+                              note: value || '',
+                            }))
+                          }
+                          height={300}
+                          preview='live'
+                          className='w-full'
+                        />
+                      </div>
                     </div>
-
-                    {showTagSuggestions ? (
-                      <div className='absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto'>
-                        {filteredTags.map((tag) => (
-                          <button
-                            key={tag.id}
-                            type='button'
-                            onClick={() => {
-                              if (!newNote.tags.includes(tag.name)) {
-                                setNewNote((prev) => ({
-                                  ...prev,
-                                  tags: [...prev.tags, tag.name],
-                                }));
-                              }
-                              setTagInput('');
-                              setShowTagSuggestions(false);
+                  </div>
+                  <div className='flex flex-col justify-between md:w-1/3 w-full'>
+                    <div className='flex flex-col gap-2 h-full overflow-scroll'>
+                      <div>
+                        <label
+                          htmlFor='timestamp'
+                          className='text-sm font-medium text-gray-700 mb-2 block'
+                        >
+                          Timestamp (Current Video Time)
+                        </label>
+                        <Input
+                          id='timestamp'
+                          type='text'
+                          value={formatTime(currentTime)}
+                          disabled
+                          className='bg-gray-50 border-gray-300 text-gray-700 font-mono'
+                        />
+                      </div>
+                      <div className='relative'>
+                        <label
+                          htmlFor='tags'
+                          className='text-sm font-medium text-gray-700 mb-2 block'
+                        >
+                          Tags
+                        </label>
+                        <div className='flex gap-2'>
+                          <Input
+                            id='tags'
+                            placeholder='Search existing tags or create new ones...'
+                            value={tagInput}
+                            onChange={(e) => {
+                              setTagInput(e.target.value);
+                              setShowTagSuggestions(e.target.value.length > 0);
                             }}
-                            className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0'
-                          >
-                            <Tag className='h-4 w-4 text-gray-400' />
-                            <span className='text-gray-700'>{tag.name}</span>
-                          </button>
-                        ))}
-                        {tagInput &&
-                        !filteredTags.some(
-                          (tag) =>
-                            tag.name.toLowerCase() === tagInput.toLowerCase(),
-                        ) ? (
-                          <button
+                            onKeyPress={(e) =>
+                              e.key === 'Enter' &&
+                              addTag(newNote.tags, (tags) =>
+                                setNewNote((prev) => ({ ...prev, tags })),
+                              )
+                            }
+                          />
+                          <Button
                             type='button'
+                            variant='outline'
                             onClick={() =>
                               addTag(newNote.tags, (tags) =>
                                 setNewNote((prev) => ({ ...prev, tags })),
                               )
                             }
-                            className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-orange-600 border-b border-gray-100 last:border-b-0'
                           >
-                            <Plus className='h-4 w-4' />
-                            <span>Create &ldquo;{tagInput}&rdquo;</span>
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-
-                    <div className='flex flex-wrap gap-2 mt-3'>
-                      {newNote.tags.map((tag) => (
-                        <Badge
-                          key={tag}
-                          variant='secondary'
-                          className='text-xs'
-                        >
-                          {tag}
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            className='h-auto p-0 ml-1'
-                            onClick={() =>
-                              removeTag(tag, newNote.tags, (tags) =>
-                                setNewNote((prev) => ({ ...prev, tags })),
-                              )
-                            }
-                          >
-                            <X className='h-3 w-3' />
+                            <Hash className='h-4 w-4' />
                           </Button>
-                        </Badge>
-                      ))}
+                        </div>
+
+                        {showTagSuggestions ? (
+                          <div className='absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto'>
+                            {filteredTags.map((tag) => (
+                              <button
+                                key={tag.id}
+                                type='button'
+                                onClick={() => {
+                                  if (!newNote.tags.includes(tag.name)) {
+                                    setNewNote((prev) => ({
+                                      ...prev,
+                                      tags: [...prev.tags, tag.name],
+                                    }));
+                                  }
+                                  setTagInput('');
+                                  setShowTagSuggestions(false);
+                                }}
+                                className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0'
+                              >
+                                <Tag className='h-4 w-4 text-gray-400' />
+                                <span className='text-gray-700'>
+                                  {tag.name}
+                                </span>
+                              </button>
+                            ))}
+                            {tagInput &&
+                            !filteredTags.some(
+                              (tag) =>
+                                tag.name.toLowerCase() ===
+                                tagInput.toLowerCase(),
+                            ) ? (
+                              <button
+                                type='button'
+                                onClick={() =>
+                                  addTag(newNote.tags, (tags) =>
+                                    setNewNote((prev) => ({ ...prev, tags })),
+                                  )
+                                }
+                                className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-orange-600 border-b border-gray-100 last:border-b-0'
+                              >
+                                <Plus className='h-4 w-4' />
+                                <span>Create &ldquo;{tagInput}&rdquo;</span>
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        <div className='flex flex-wrap gap-2 mt-3'>
+                          {newNote.tags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant='secondary'
+                              className='text-xs'
+                            >
+                              {tag}
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='h-auto p-0 ml-1'
+                                onClick={() =>
+                                  removeTag(tag, newNote.tags, (tags) =>
+                                    setNewNote((prev) => ({ ...prev, tags })),
+                                  )
+                                }
+                              >
+                                <X className='h-3 w-3' />
+                              </Button>
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className='flex gap-3 pt-4'>
-                    <Button
-                      onClick={handleAddNote}
-                      className='flex-1'
-                      disabled={isCreating}
-                    >
-                      {isCreating ? (
-                        <>
-                          <Loader2 className='h-4 w-4 mr-2 animate-spin' />
-                          Creating Note...
-                        </>
-                      ) : (
-                        'Create Note'
-                      )}
-                    </Button>
-                    <Button variant='outline' onClick={handleCloseAddNote}>
-                      Cancel
-                    </Button>
+                    <div className='flex justify-between gap-2'>
+                      <Button
+                        onClick={handleAddNote}
+                        className='flex-1'
+                        disabled={isCreating}
+                      >
+                        {isCreating ? (
+                          <>
+                            <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                            Creating Note...
+                          </>
+                        ) : (
+                          'Create Note'
+                        )}
+                      </Button>
+                      <Button variant='outline' onClick={handleCloseAddNote}>
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </DialogContent>
@@ -755,219 +764,231 @@ export const NotesPanel = ({
           setIsPreviewMode(false);
         }}
       >
-        <DialogContent className='max-w-6xl max-h-[95vh] overflow-hidden'>
+        <DialogContent className='w-full !max-w-4xl md:!w-[64rem] max-h-[90vh] h-fit overflow-y-auto'>
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2'>
               <Edit className='h-5 w-5' />
               Edit Note
             </DialogTitle>
           </DialogHeader>
-
-          <div className='flex flex-col h-full space-y-4'>
-            {/* Title Input */}
-            <div>
-              <label
-                htmlFor='edit-title'
-                className='text-sm font-medium text-gray-700 mb-2 block'
-              >
-                Note Title
-              </label>
-              <Input
-                id='edit-title'
-                placeholder='Enter note title...'
-                value={editingNote.title}
-                onChange={(e) =>
-                  setEditingNote((prev) => ({ ...prev, title: e.target.value }))
-                }
-                className='text-lg font-semibold'
-              />
-            </div>
-
-            {/* Tags Section */}
-            <div className='relative'>
-              <label
-                htmlFor='edit-tags'
-                className='text-sm font-medium text-gray-700 mb-2 block'
-              >
-                Tags
-              </label>
-              <div className='flex gap-2'>
-                <Input
-                  id='edit-tags'
-                  placeholder='Search existing tags or create new ones...'
-                  value={tagInput}
-                  onChange={(e) => {
-                    setTagInput(e.target.value);
-                    setShowTagSuggestions(e.target.value.length > 0);
-                  }}
-                  onKeyPress={(e) =>
-                    e.key === 'Enter' &&
-                    addTag(editingNote.tags, (tags) =>
-                      setEditingNote((prev) => ({ ...prev, tags })),
-                    )
-                  }
-                />
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() =>
-                    addTag(editingNote.tags, (tags) =>
-                      setEditingNote((prev) => ({ ...prev, tags })),
-                    )
-                  }
-                >
-                  <Hash className='h-4 w-4' />
-                </Button>
-              </div>
-
-              {showTagSuggestions ? (
-                <div className='absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto'>
-                  {filteredTags.map((tag) => (
-                    <button
-                      key={tag.id}
-                      type='button'
-                      onClick={() =>
-                        addTag(editingNote.tags, (tags) =>
-                          setEditingNote((prev) => ({ ...prev, tags })),
-                        )
-                      }
-                      className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0'
-                    >
-                      <Tag className='h-4 w-4 text-gray-400' />
-                      <span className='text-gray-700'>{tag.name}</span>
-                    </button>
-                  ))}
-                  {tagInput &&
-                  !filteredTags.some(
-                    (tag) => tag.name.toLowerCase() === tagInput.toLowerCase(),
-                  ) ? (
-                    <button
-                      type='button'
-                      onClick={() =>
-                        addTag(editingNote.tags, (tags) =>
-                          setEditingNote((prev) => ({ ...prev, tags })),
-                        )
-                      }
-                      className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-orange-600 border-b border-gray-100 last:border-b-0'
-                    >
-                      <Plus className='h-4 w-4' />
-                      <span>Create &ldquo;{tagInput}&rdquo;</span>
-                    </button>
-                  ) : null}
+          <div className='flex flex-col md:flex-row md:space-x-8 space-y-4 md:space-y-0 w-full'>
+            <div className='flex-1 min-w-0 space-y-2'>
+              <div className='flex flex-col h-full space-y-4'>
+                {/* Title Input */}
+                <div>
+                  <label
+                    htmlFor='edit-title'
+                    className='text-sm font-medium text-gray-700 mb-2 block'
+                  >
+                    Note Title
+                  </label>
+                  <Input
+                    id='edit-title'
+                    placeholder='Enter note title...'
+                    value={editingNote.title}
+                    onChange={(e) =>
+                      setEditingNote((prev) => ({
+                        ...prev,
+                        title: e.target.value,
+                      }))
+                    }
+                    className='text-lg font-semibold'
+                  />
                 </div>
-              ) : null}
 
-              <div className='flex flex-wrap gap-2 mt-3'>
-                {editingNote.tags.map((tag) => (
-                  <Badge key={tag} variant='secondary' className='text-sm'>
-                    {tag}
+                <div className='flex items-center justify-between'>
+                  <h3 className='text-lg font-semibold text-gray-900'>
+                    Note Content
+                  </h3>
+                  <div className='flex items-center gap-2'>
                     <Button
-                      variant='ghost'
+                      variant={!isPreviewMode ? 'default' : 'outline'}
                       size='sm'
-                      className='h-auto p-0 ml-1'
+                      onClick={() => setIsPreviewMode(false)}
+                    >
+                      <Edit className='h-4 w-4 mr-2' />
+                      Edit
+                    </Button>
+                    <Button
+                      variant={isPreviewMode ? 'default' : 'outline'}
+                      size='sm'
+                      onClick={() => setIsPreviewMode(true)}
+                    >
+                      {isPreviewMode ? (
+                        <>
+                          <Eye className='h-4 w-4 mr-2' />
+                          Preview
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className='h-4 w-4 mr-2' />
+                          Preview
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className='flex-1 min-h-0 border border-gray-300 rounded-lg overflow-hidden'>
+                  {isPreviewMode ? (
+                    <ScrollArea className='h-full'>
+                      <div className='p-6 bg-white'>
+                        <MarkdownPreview
+                          source={editingNote.note}
+                          wrapperElement={{
+                            'data-color-mode': 'light',
+                          }}
+                          className='w-full'
+                        />
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <MDEditor
+                      value={editingNote.note}
+                      onChange={(value) =>
+                        setEditingNote((prev) => ({
+                          ...prev,
+                          note: value || '',
+                        }))
+                      }
+                      height='100%'
+                      preview='live'
+                      className='w-full h-full min-h-[40vh]'
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className='flex flex-col justify-between md:w-1/3 w-full'>
+              <div>
+                {/* Tags Section */}
+                <div className='relative'>
+                  <label
+                    htmlFor='edit-tags'
+                    className='text-sm font-medium text-gray-700 mb-2 block'
+                  >
+                    Tags
+                  </label>
+                  <div className='flex gap-2'>
+                    <Input
+                      id='edit-tags'
+                      placeholder='Search existing tags or create new ones...'
+                      value={tagInput}
+                      onChange={(e) => {
+                        setTagInput(e.target.value);
+                        setShowTagSuggestions(e.target.value.length > 0);
+                      }}
+                      onKeyPress={(e) =>
+                        e.key === 'Enter' &&
+                        addTag(editingNote.tags, (tags) =>
+                          setEditingNote((prev) => ({ ...prev, tags })),
+                        )
+                      }
+                    />
+                    <Button
+                      type='button'
+                      variant='outline'
                       onClick={() =>
-                        removeTag(tag, editingNote.tags, (tags) =>
+                        addTag(editingNote.tags, (tags) =>
                           setEditingNote((prev) => ({ ...prev, tags })),
                         )
                       }
                     >
-                      <X className='h-3 w-3' />
+                      <Hash className='h-4 w-4' />
                     </Button>
-                  </Badge>
-                ))}
+                  </div>
+
+                  {showTagSuggestions ? (
+                    <div className='absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto'>
+                      {filteredTags.map((tag) => (
+                        <button
+                          key={tag.id}
+                          type='button'
+                          onClick={() =>
+                            addTag(editingNote.tags, (tags) =>
+                              setEditingNote((prev) => ({ ...prev, tags })),
+                            )
+                          }
+                          className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0'
+                        >
+                          <Tag className='h-4 w-4 text-gray-400' />
+                          <span className='text-gray-700'>{tag.name}</span>
+                        </button>
+                      ))}
+                      {tagInput &&
+                      !filteredTags.some(
+                        (tag) =>
+                          tag.name.toLowerCase() === tagInput.toLowerCase(),
+                      ) ? (
+                        <button
+                          type='button'
+                          onClick={() =>
+                            addTag(editingNote.tags, (tags) =>
+                              setEditingNote((prev) => ({ ...prev, tags })),
+                            )
+                          }
+                          className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-orange-600 border-b border-gray-100 last:border-b-0'
+                        >
+                          <Plus className='h-4 w-4' />
+                          <span>Create &ldquo;{tagInput}&rdquo;</span>
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className='flex flex-wrap gap-2 mt-3'>
+                    {editingNote.tags.map((tag) => (
+                      <Badge key={tag} variant='secondary' className='text-sm'>
+                        {tag}
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-auto p-0 ml-1'
+                          onClick={() =>
+                            removeTag(tag, editingNote.tags, (tags) =>
+                              setEditingNote((prev) => ({ ...prev, tags })),
+                            )
+                          }
+                        >
+                          <X className='h-3 w-3' />
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-
-            <div className='border-t border-gray-200 my-4' />
-
-            <div className='flex items-center justify-between'>
-              <h3 className='text-lg font-semibold text-gray-900'>
-                Note Content
-              </h3>
-              <div className='flex items-center gap-2'>
+              {/* Action Buttons */}
+              <div className='flex gap-3 pt-4 border-t border-gray-200'>
                 <Button
-                  variant={!isPreviewMode ? 'default' : 'outline'}
-                  size='sm'
-                  onClick={() => setIsPreviewMode(false)}
+                  onClick={() =>
+                    isEditingNote && handleUpdateNote(isEditingNote)
+                  }
+                  className='flex-1'
+                  disabled={isUpdating || !isEditingNote}
                 >
-                  <Edit className='h-4 w-4 mr-2' />
-                  Edit
-                </Button>
-                <Button
-                  variant={isPreviewMode ? 'default' : 'outline'}
-                  size='sm'
-                  onClick={() => setIsPreviewMode(true)}
-                >
-                  {isPreviewMode ? (
+                  {isUpdating ? (
                     <>
-                      <Eye className='h-4 w-4 mr-2' />
-                      Preview
+                      <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                      Saving...
                     </>
                   ) : (
                     <>
-                      <EyeOff className='h-4 w-4 mr-2' />
-                      Preview
+                      <Save className='h-4 w-4 mr-2' />
+                      Save Changes
                     </>
                   )}
                 </Button>
+                <Button
+                  variant='outline'
+                  onClick={() => {
+                    setIsEditingNote(null);
+                    setEditingNote({ title: '', note: '', tags: [] });
+                    setIsPreviewMode(false);
+                  }}
+                >
+                  Cancel
+                </Button>
               </div>
-            </div>
-
-            <div className='flex-1 min-h-0 border border-gray-300 rounded-lg overflow-hidden'>
-              {isPreviewMode ? (
-                <ScrollArea className='h-full'>
-                  <div className='p-6 bg-white'>
-                    <MarkdownPreview
-                      source={editingNote.note}
-                      wrapperElement={{
-                        'data-color-mode': 'light',
-                      }}
-                      className='w-full'
-                    />
-                  </div>
-                </ScrollArea>
-              ) : (
-                <MDEditor
-                  value={editingNote.note}
-                  onChange={(value) =>
-                    setEditingNote((prev) => ({ ...prev, note: value || '' }))
-                  }
-                  height='100%'
-                  preview='live'
-                  className='w-full h-full'
-                />
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className='flex gap-3 pt-4 border-t border-gray-200'>
-              <Button
-                onClick={() => isEditingNote && handleUpdateNote(isEditingNote)}
-                className='flex-1'
-                disabled={isUpdating || !isEditingNote}
-              >
-                {isUpdating ? (
-                  <>
-                    <Loader2 className='h-4 w-4 mr-2 animate-spin' />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className='h-4 w-4 mr-2' />
-                    Save Changes
-                  </>
-                )}
-              </Button>
-              <Button
-                variant='outline'
-                onClick={() => {
-                  setIsEditingNote(null);
-                  setEditingNote({ title: '', note: '', tags: [] });
-                  setIsPreviewMode(false);
-                }}
-              >
-                Cancel
-              </Button>
             </div>
           </div>
         </DialogContent>
