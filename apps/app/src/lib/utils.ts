@@ -1,4 +1,4 @@
-import { clsx, type ClassValue } from 'clsx';
+import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 export function cn(...inputs: ClassValue[]) {
@@ -97,4 +97,11 @@ export const truncateText = (text: string, maxLength: number): string => {
     return text;
   }
   return `${text.substring(0, maxLength).trim()}...`;
+};
+
+export const extractVideoId = (url: string): string | null => {
+  const regex =
+    /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/;
+  const match = url.match(regex);
+  return match ? match[1] : null;
 };

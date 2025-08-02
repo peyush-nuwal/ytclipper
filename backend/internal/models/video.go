@@ -17,41 +17,27 @@ type Video struct {
 	UserID uuid.UUID `bun:"user_id,type:uuid,notnull" json:"user_id"`
 
 	// YouTube video information
-	YouTubeID   string `bun:"youtube_id,notnull" json:"youtube_id"`
+	YouTubeURL  string `bun:"youtube_url,notnull" json:"youtube_url"`
+	VideoID     string `bun:"video_id,notnull" json:"video_id"`
 	Title       string `bun:"title,notnull" json:"title"`
 	Description string `bun:"description" json:"description"`
 
 	// Video metadata
-	Duration     int64      `bun:"duration" json:"duration"` // Duration in seconds
 	ThumbnailURL string     `bun:"thumbnail_url" json:"thumbnail_url"`
-	ChannelID    string     `bun:"channel_id" json:"channel_id"`
-	ChannelName  string     `bun:"channel_name" json:"channel_name"`
+	Duration     int        `bun:"duration" json:"duration"` // Duration in seconds
 	PublishedAt  *time.Time `bun:"published_at" json:"published_at"`
+	ChannelID    string     `bun:"channel_id" json:"channel_id"`
+	ChannelTitle string     `bun:"channel_title" json:"channel_title"`
 
-	// Video categorization
-	Category string `bun:"category" json:"category"`
-	Language string `bun:"language" json:"language"`
-
-	// Status and visibility
-	Status      VideoStatus     `bun:"status,default:'active'" json:"status"`
-	Visibility  VideoVisibility `bun:"visibility,default:'private'" json:"visibility"`
-	IsProcessed bool            `bun:"is_processed,default:false" json:"is_processed"`
+	// AI and analytics
+	AISummary            string     `bun:"ai_summary" json:"ai_summary"`
+	AISummaryGeneratedAt *time.Time `bun:"ai_summary_generated_at" json:"ai_summary_generated_at"`
+	WatchedDuration      int        `bun:"watched_duration,default:0" json:"watched_duration"`
 
 	// Statistics
 	ViewCount    int64 `bun:"view_count,default:0" json:"view_count"`
 	LikeCount    int64 `bun:"like_count,default:0" json:"like_count"`
 	CommentCount int64 `bun:"comment_count,default:0" json:"comment_count"`
-	ClipCount    int   `bun:"clip_count,default:0" json:"clip_count"`
-
-	// User interactions
-	IsFavorite    bool       `bun:"is_favorite,default:false" json:"is_favorite"`
-	LastWatchedAt *time.Time `bun:"last_watched_at" json:"last_watched_at"`
-	WatchProgress float64    `bun:"watch_progress,default:0" json:"watch_progress"` // Percentage (0-100)
-
-	// Metadata
-	Notes       string `bun:"notes" json:"notes"`
-	CustomTitle string `bun:"custom_title" json:"custom_title"` // User's custom title
-	Rating      int    `bun:"rating,default:0" json:"rating"`   // 1-5 stars
 
 	// Timestamps
 	CreatedAt time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
@@ -59,8 +45,7 @@ type Video struct {
 	DeletedAt *time.Time `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
 	// Relationships
-	User  *User  `bun:"rel:belongs-to,join:user_id=id" json:"user,omitempty"`
-	Clips []Clip `bun:"rel:has-many,join:id=video_id" json:"clips,omitempty"`
+	User *User `bun:"rel:belongs-to,join:user_id=id" json:"user,omitempty"`
 }
 
 // VideoStatus represents the status of a video
@@ -182,18 +167,17 @@ func (v *Video) GetDurationFormatted() string {
 	if v.Duration == 0 {
 		return "Unknown"
 	}
-	return formatDuration(v.Duration)
+	return formatDuration(int64(v.Duration))
 }
 
 // GetWatchTimeFormatted returns the total watch time in a human-readable format
 func (v *Video) GetWatchTimeFormatted() string {
-	watchTime := int64(float64(v.Duration) * (v.WatchProgress / 100))
-	return formatDuration(watchTime)
+	return formatDuration(int64(v.Duration))
 }
 
 // IsWatched returns true if the video has been watched (>90% completion)
 func (v *Video) IsWatched() bool {
-	return v.WatchProgress >= 90.0
+	return false
 }
 
 // formatDuration formats seconds into a human-readable duration string

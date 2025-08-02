@@ -12,21 +12,24 @@ import (
 	"github.com/shubhamku044/ytclipper/internal/config"
 	"github.com/shubhamku044/ytclipper/internal/database"
 	authhandlers "github.com/shubhamku044/ytclipper/internal/handlers/auth"
+	"github.com/shubhamku044/ytclipper/internal/handlers/videos"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
 	"github.com/shubhamku044/ytclipper/internal/models"
 )
 
 type TimestampsHandlers struct {
-	db         *database.Database
-	aiService  *AIService
-	tagService *TagService
+	db            *database.Database
+	aiService     *AIService
+	tagService    *TagService
+	videoHandlers *videos.VideoHandlers
 }
 
 func NewTimestampsHandlers(db *database.Database, openaiAPIKey *config.OpenAIConfig) *TimestampsHandlers {
 	return &TimestampsHandlers{
-		db:         db,
-		aiService:  NewAIService(openaiAPIKey, db),
-		tagService: NewTagService(db),
+		db:            db,
+		aiService:     NewAIService(openaiAPIKey, db),
+		tagService:    NewTagService(db),
+		videoHandlers: videos.NewVideoHandlers(db),
 	}
 }
 
@@ -123,6 +126,26 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
+
+	videoExists, err := t.videoHandlers.VideoExists(ctx, userID, req.VideoID)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "VIDEO_CHECK_ERROR", "Failed to check video existence", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	if !videoExists {
+		placeholderTitle := "Video " + req.VideoID
+		placeholderURL := "https://youtube.com/watch?v=" + req.VideoID
+
+		if err := t.videoHandlers.CreateVideoIfNotExists(ctx, userID, req.VideoID, placeholderURL, placeholderTitle); err != nil {
+			middleware.RespondWithError(c, http.StatusInternalServerError, "VIDEO_ERROR", "Failed to create video", gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+	}
 
 	timestamp := models.Timestamp{
 		UserID:    userID,
@@ -328,6 +351,101 @@ func (t *TimestampsHandlers) DeleteTimestamp(c *gin.Context) {
 
 	middleware.RespondWithOK(c, gin.H{
 		"message": "Timestamp deleted successfully",
+	})
+}
+
+func (t *TimestampsHandlers) UpdateTimestamp(c *gin.Context) {
+	userIDStr, exists := authhandlers.GetUserID(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found", nil)
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	timestampIDStr := c.Param("id")
+	if timestampIDStr == "" {
+		middleware.RespondWithError(c, http.StatusBadRequest, "MISSING_TIMESTAMP_ID", "Timestamp ID is required", nil)
+		return
+	}
+
+	timestampID, err := uuid.Parse(timestampIDStr)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_TIMESTAMP_ID", "Invalid timestamp ID format", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	var req struct {
+		Title string   `json:"title"`
+		Note  string   `json:"note"`
+		Tags  []string `json:"tags"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	ctx := context.Background()
+
+	tx, err := t.db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_TRANSACTION_ERROR", "Failed to start database transaction", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	defer tx.Rollback()
+
+	_, err = tx.NewUpdate().
+		Model((*models.Timestamp)(nil)).
+		Set("title = ?", req.Title).
+		Set("note = ?", req.Note).
+		Set("updated_at = ?", time.Now().UTC()).
+		Where("id = ? AND user_id = ?", timestampID, userID).
+		Exec(ctx)
+
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to update timestamp", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	tagIDs, err := t.tagService.ProcessTagsForTimestampWithTx(ctx, tx, req.Tags)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "TAG_ERROR", "Failed to process tags", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	if err := t.tagService.CreateTimestampTagRelationsWithTx(ctx, tx, timestampID.String(), tagIDs); err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "TAG_RELATION_ERROR", "Failed to create tag relations", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_COMMIT_ERROR", "Failed to commit transaction", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	middleware.RespondWithOK(c, gin.H{
+		"message": "Timestamp updated successfully",
 	})
 }
 

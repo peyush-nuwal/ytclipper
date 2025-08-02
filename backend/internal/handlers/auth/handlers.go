@@ -413,13 +413,7 @@ func (h *AuthHandlers) AuthStatusHandler(c *gin.Context) {
 func (h *AuthHandlers) DebugUserHandler(c *gin.Context) {
 	email := c.Query("email")
 	if email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"error": gin.H{
-				"code":    "MISSING_EMAIL",
-				"message": "Email parameter is required",
-			},
-		})
+		middleware.RespondWithError(c, http.StatusBadRequest, "MISSING_EMAIL", "Email parameter is required", nil)
 		return
 	}
 
@@ -431,19 +425,11 @@ func (h *AuthHandlers) DebugUserHandler(c *gin.Context) {
 		Scan(ctx)
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"error": gin.H{
-				"code":    "USER_NOT_FOUND",
-				"message": "User not found in database",
-				"details": err.Error(),
-			},
-		})
+		middleware.RespondWithError(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found in database", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	middleware.RespondWithOK(c, gin.H{
 		"user": gin.H{
 			"id":             user.ID.String(),
 			"email":          user.Email,

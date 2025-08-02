@@ -1,5 +1,6 @@
 import { AIChat, NotesPanel } from '@/components/notes';
 import { VideoPlayer } from '@/components/video';
+import { extractVideoId } from '@/lib/utils';
 import { useGenerateSummaryMutation } from '@/services/timestamps';
 import {
   Badge,
@@ -40,18 +41,10 @@ export const TimestampsPage = () => {
 
   const [generateSummary] = useGenerateSummaryMutation();
 
-  const extractVideoId = (url: string) => {
-    const regex =
-      /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
-  };
-
   const handleVideoUrlSubmit = () => {
     if (videoUrl) {
       const id = extractVideoId(videoUrl);
       if (id) {
-        // Navigate to the new video page
         navigate(`/timestamps/${id}`);
         setVideoUrl('');
         toast('Video loaded successfully!', {
@@ -138,15 +131,19 @@ export const TimestampsPage = () => {
                         e.key === 'Enter' && handleVideoUrlSubmit()
                       }
                     />
-                    <Button onClick={handleVideoUrlSubmit}>
-                      <Play className='h-4 w-4 mr-2' />
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={handleVideoUrlSubmit}
+                      className='text-xs h-10 px-4'
+                    >
+                      <Play className='h-3 w-3 mr-1' />
                       Load Video
                     </Button>
                   </div>
                 </div>
               </div>
 
-              {/* Video Summary Card */}
               <Card className='mt-4'>
                 <CardHeader className='pb-3'>
                   <div className='flex items-center justify-between'>
@@ -172,6 +169,7 @@ export const TimestampsPage = () => {
                         size='sm'
                         onClick={handleGenerateSummary}
                         disabled={isGeneratingSummary}
+                        className='h-10 px-4'
                       >
                         {isGeneratingSummary ? (
                           <>
@@ -221,7 +219,6 @@ export const TimestampsPage = () => {
 
           <ResizableHandle />
 
-          {/* Right Panel - Notes & AI */}
           <ResizablePanel defaultSize={40} minSize={30}>
             <div className='h-full pl-2'>
               <Tabs defaultValue='notes' className='h-full flex flex-col'>

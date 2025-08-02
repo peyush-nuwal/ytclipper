@@ -5,8 +5,10 @@ import { AppLayout } from '@/components/layout';
 import {
   DashboardPage,
   ErrorPage,
+  ForgotPasswordPage,
   HomePage,
   NotFoundPage,
+  PricingPage,
   ProfilePage,
   TimestampsPage,
   VideosPage,
@@ -86,6 +88,7 @@ const App = () => {
           }
         />
         <Route path='/auth/callback' element={<GoogleCallback />} />
+        <Route path='/auth/forgot-password' element={<ForgotPasswordPage />} />
 
         <Route
           element={
@@ -97,6 +100,7 @@ const App = () => {
           <Route path='/dashboard' element={<DashboardPage />} />
           <Route path='/profile' element={<ProfilePage />} />
           <Route path='/videos' element={<VideosPage />} />
+          <Route path='/pricing' element={<PricingPage />} />
           <Route path='/timestamps/:videoId' element={<TimestampsPage />} />
         </Route>
         <Route path='/error' element={<ErrorPage />} />
