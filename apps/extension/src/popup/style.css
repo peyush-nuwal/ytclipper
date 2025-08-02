@@ -22,7 +22,6 @@ body {
   color: var(--light);
   min-height: 100vh;
   padding: 10px;
-  overflow: hidden;
 }
 
 .popup-container {

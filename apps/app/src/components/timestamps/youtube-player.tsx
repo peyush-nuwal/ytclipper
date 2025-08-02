@@ -1,3 +1,5 @@
+import { AspectRatio, Button } from '@ytclipper/ui';
+import { Plus } from 'lucide-react';
 import React, {
   forwardRef,
   useCallback,
@@ -34,6 +36,29 @@ interface YTPlayerClass {
   getIframe(): HTMLIFrameElement;
   getCurrentTime(): number;
   getDuration(): number;
+  getVideoData(): {
+    title: string;
+    video_id: string;
+    author: string;
+    video_quality: string;
+    video_embed_frame: string;
+  };
+  getVideoUrl(): string;
+  getPlaylist(): string[];
+  getPlaylistIndex(): number;
+  getAvailablePlaybackRates(): number[];
+  getPlaybackRate(): number;
+  getAvailableQualityLevels(): string[];
+  getPlaybackQuality(): string;
+  getPlayerState(): number;
+}
+
+export interface VideoMetadata {
+  video_id: string;
+  title: string;
+  duration?: number;
+  thumbnail_url?: string;
+  channel_title?: string;
 }
 
 declare global {
@@ -56,10 +81,13 @@ declare global {
   }
 }
 
-interface YouTubePlayerProps {
+export interface YouTubePlayerProps {
   videoId: string;
   onReady?: () => void;
   onError?: (error: number) => void;
+  onVideoTitle?: (title: string) => void;
+  onVideoMetadata?: (metadata: VideoMetadata) => void;
+  onWatchedDurationUpdate?: (watchedDuration: number) => void;
   className?: string;
 }
 
@@ -69,9 +97,15 @@ interface YouTubePlayerRef {
   pause: () => void;
   getCurrentTime: () => number;
   getDuration: () => number;
+  getWatchedDuration: () => number;
+  onVideoTitle?: () => string | null;
+  getVideoData?: () => {
+    title: string;
+    video_id: string;
+  };
+  getVideoMetadata?: () => VideoMetadata | null;
 }
 
-// Global state for API loading
 let isAPILoaded = false;
 let isAPILoading = false;
 const waitingComponents: (() => void)[] = [];
@@ -90,7 +124,6 @@ const loadYouTubeAPI = (): Promise<void> => {
 
     isAPILoading = true;
 
-    // Set global callback
     window.onYouTubeIframeAPIReady = () => {
       isAPILoaded = true;
       isAPILoading = false;
@@ -106,7 +139,6 @@ const loadYouTubeAPI = (): Promise<void> => {
       return;
     }
 
-    // Load the API script
     const tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
     tag.async = true;
@@ -126,7 +158,6 @@ const loadYouTubeAPI = (): Promise<void> => {
       document.head.appendChild(tag);
     }
 
-    // Timeout fallback
     setTimeout(() => {
       if (isAPILoading) {
         console.error('YouTube API loading timeout');
@@ -138,7 +169,18 @@ const loadYouTubeAPI = (): Promise<void> => {
 };
 
 export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
-  ({ videoId, onReady, onError, className = '' }: YouTubePlayerProps, ref) => {
+  (
+    {
+      videoId,
+      onReady,
+      onError,
+      onVideoTitle,
+      onVideoMetadata,
+      onWatchedDurationUpdate,
+      className = '',
+    }: YouTubePlayerProps,
+    ref,
+  ) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const playerInstanceRef = useRef<YTPlayerClass | null>(null);
     const playerIdRef = useRef<string>(
@@ -146,10 +188,20 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
     );
     const [isPlayerReady, setIsPlayerReady] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [videoTitle, setVideoTitle] = useState<string | null>(null);
+    const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(
+      null,
+    );
+    const [watchedDuration, setWatchedDuration] = useState<number>(0);
+    const onVideoTitleRef = useRef(onVideoTitle);
+    const onVideoMetadataRef = useRef(onVideoMetadata);
+    const onWatchedDurationUpdateRef = useRef(onWatchedDurationUpdate);
 
     const onReadyRef = useRef(onReady);
     const onErrorRef = useRef(onError);
-
+    useEffect(() => {
+      onVideoTitleRef.current = onVideoTitle;
+    }, [onVideoTitle]);
     useEffect(() => {
       onReadyRef.current = onReady;
     }, [onReady]);
@@ -157,6 +209,15 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
     useEffect(() => {
       onErrorRef.current = onError;
     }, [onError]);
+
+    useEffect(() => {
+      onVideoMetadataRef.current = onVideoMetadata;
+      console.log('onVideoMetadataRef', onVideoMetadataRef.current);
+    }, [onVideoMetadata]);
+
+    useEffect(() => {
+      onWatchedDurationUpdateRef.current = onWatchedDurationUpdate;
+    }, [onWatchedDurationUpdate]);
 
     const playerMethods = useMemo<YouTubePlayerRef>(() => {
       return {
@@ -214,15 +275,88 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
           }
           return 0;
         },
+        getWatchedDuration: () => {
+          return watchedDuration;
+        },
+        getVideoTitle: () => {
+          return videoTitle;
+        },
+        getVideoData: () => {
+          if (playerInstanceRef.current && isPlayerReady) {
+            try {
+              return playerInstanceRef.current.getVideoData();
+            } catch (error) {
+              console.error('Error getting video data:', error);
+            }
+          }
+          return { title: '', video_id: '' };
+        },
+        getVideoMetadata: () => {
+          return videoMetadata;
+        },
       };
-    }, [isPlayerReady]);
+    }, [isPlayerReady, videoTitle, videoMetadata, watchedDuration]);
+
     React.useImperativeHandle(ref, () => playerMethods, [playerMethods]);
 
     const handlePlayerReady = useCallback(() => {
       setIsPlayerReady(true);
       setError(null);
+      if (playerInstanceRef.current) {
+        try {
+          const videoData = playerInstanceRef.current.getVideoData();
+          const title = videoData.title;
+          if (title) {
+            setVideoTitle(title);
+            onVideoTitleRef.current?.(title);
+          }
+
+          // Get comprehensive video metadata
+          const metadata = playerInstanceRef.current.getVideoData();
+          const duration = playerInstanceRef.current.getDuration();
+
+          // Create basic metadata object with only available data
+          const videoMetadataData: VideoMetadata = {
+            video_id: metadata.video_id,
+            title: metadata.title,
+            channel_title: metadata.author,
+            duration,
+            thumbnail_url: `https://img.youtube.com/vi/${metadata.video_id}/hqdefault.jpg`,
+          };
+
+          setVideoMetadata(videoMetadataData);
+          onVideoMetadataRef.current?.(videoMetadataData);
+        } catch (error) {
+          console.error('Error fetching video title:', error);
+        }
+      }
+
       onReadyRef.current?.();
     }, []);
+
+    useEffect(() => {
+      if (!isPlayerReady || !playerInstanceRef.current) {
+        return undefined;
+      }
+
+      const updateWatchedDuration = () => {
+        if (playerInstanceRef.current) {
+          const currentTime = playerInstanceRef.current.getCurrentTime();
+          const playerState = playerInstanceRef.current.getPlayerState();
+
+          if (playerState === 1 && currentTime > 0) {
+            setWatchedDuration(currentTime);
+            onWatchedDurationUpdateRef.current?.(currentTime);
+          }
+        }
+      };
+
+      const durationInterval = setInterval(updateWatchedDuration, 10000);
+
+      return () => {
+        clearInterval(durationInterval);
+      };
+    }, [isPlayerReady]);
 
     const handlePlayerError = useCallback((event: { data: number }) => {
       console.error('YouTube player error:', event.data);
@@ -313,46 +447,80 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
     }
 
     return (
-      <div
-        className={`relative bg-black rounded-lg overflow-hidden ${className}`}
-      >
+      <AspectRatio ratio={16 / 9} className='w-full'>
         <div
-          ref={containerRef}
-          className='w-full h-full'
-          style={{ minHeight: '200px' }}
-        />
+          className={`relative bg-black rounded-lg overflow-hidden ${className}`}
+        >
+          <div
+            ref={containerRef}
+            className='w-full h-full'
+            style={{ minHeight: '200px' }}
+          />
 
-        {!isPlayerReady && !error && (
-          <div className='absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-black'>
-            <div className='text-center'>
-              {/* Loading Spinner */}
-              <div className='relative mb-4'>
-                <div className='w-12 h-12 border-4 border-gray-600 border-t-red-500 rounded-full animate-spin mx-auto' />
-                <div className='absolute inset-0 flex items-center justify-center'>
-                  <div className='w-6 h-6 bg-red-500 rounded-full animate-pulse' />
+          {!isPlayerReady && !error && (
+            <div className='absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100'>
+              <div className='text-center'>
+                <div className='relative mb-6'>
+                  <div className='w-16 h-16 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin mx-auto' />
+                  <div className='absolute inset-0 flex items-center justify-center'>
+                    <div className='w-8 h-8 bg-orange-500 rounded-full animate-pulse' />
+                  </div>
+                </div>
+
+                <div className='mb-4'>
+                  <h3 className='text-lg font-semibold text-gray-800 mb-2'>
+                    Loading YouTube Player
+                  </h3>
+                  <p className='text-gray-600 text-sm'>
+                    Please wait while we prepare your video...
+                  </p>
+                </div>
+
+                <div className='flex justify-center space-x-1 mb-4'>
+                  <div className='w-2 h-2 bg-orange-400 rounded-full animate-pulse' />
+                  <div
+                    className='w-2 h-2 bg-orange-400 rounded-full animate-pulse'
+                    style={{ animationDelay: '0.2s' }}
+                  />
+                  <div
+                    className='w-2 h-2 bg-orange-400 rounded-full animate-pulse'
+                    style={{ animationDelay: '0.4s' }}
+                  />
+                </div>
+
+                <div className='bg-white/80 backdrop-blur-sm rounded-lg p-3 text-xs text-gray-600'>
+                  <div className='space-y-1'>
+                    <div className='flex justify-between'>
+                      <span>API Status:</span>
+                      <span
+                        className={
+                          isAPILoaded ? 'text-green-600' : 'text-orange-600'
+                        }
+                      >
+                        {isAPILoaded ? 'Ready' : 'Loading...'}
+                      </span>
+                    </div>
+                    <div className='flex justify-between'>
+                      <span>Video ID:</span>
+                      <span className='font-mono text-gray-700'>{videoId}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <div className='flex justify-center space-x-1'>
-                <div className='w-2 h-2 bg-gray-400 rounded-full animate-pulse' />
-                <div
-                  className='w-2 h-2 bg-gray-400 rounded-full animate-pulse'
-                  style={{ animationDelay: '0.2s' }}
-                />
-                <div
-                  className='w-2 h-2 bg-gray-400 rounded-full animate-pulse'
-                  style={{ animationDelay: '0.4s' }}
-                />
-              </div>
-
-              <div className='text-gray-400 text-xs mt-3'>
-                API Loaded: {isAPILoaded ? 'Yes' : 'No'} | API Loading:{' '}
-                {isAPILoading ? 'Yes' : 'No'} | Video ID: {videoId} | Player
-              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+          <Button
+            variant='floating'
+            size='icon'
+            className='absolute top-4 right-4 rounded-full'
+            onClick={() => {
+              console.log('Add to Clip button clicked');
+            }}
+          >
+            <Plus className='h-5 w-5' />
+          </Button>
+        </div>
+      </AspectRatio>
     );
   },
 );

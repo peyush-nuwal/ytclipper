@@ -30,7 +30,7 @@ const LogoutButton = () => {
       console.error('❌ Logout failed:', error);
     } finally {
       dispatch(logoutHandler());
-      navigate('/auth/logout');
+      navigate('/');
     }
   };
 

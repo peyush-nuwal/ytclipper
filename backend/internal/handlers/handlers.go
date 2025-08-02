@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/shubhamku044/ytclipper/internal/auth"
 	"github.com/shubhamku044/ytclipper/internal/database"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
 )
@@ -60,94 +59,28 @@ func DBHealthCheck(db *database.Database) gin.HandlerFunc {
 }
 
 func VerifyToken(c *gin.Context) {
-	userID, exists := auth.GetUserID(c)
-	if !exists {
-		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found in token", nil)
-		return
-	}
-
-	claims, exists := auth.GetClaims(c)
-	if !exists {
-		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_CLAIMS", "Token claims not found", nil)
-		return
-	}
-
-	user := UserInfo{
-		ID:        userID,
-		Email:     claims.RegisteredClaims.Subject,
-		Name:      "",
-		CreatedAt: claims.RegisteredClaims.IssuedAt.Time.Format(time.RFC3339),
-	}
-
+	// This function is now handled by the auth handlers
+	// Redirect to the auth status endpoint
 	middleware.RespondWithOK(c, gin.H{
-		"user":  user,
-		"valid": true,
+		"message":  "Token verification is handled by auth handlers",
+		"endpoint": "/api/v1/auth/status",
 	})
 }
 
 func GetUserProfile(c *gin.Context) {
-	userID, exists := auth.GetUserID(c)
-	if !exists {
-		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found in token", nil)
-		return
-	}
-
-	claims, exists := auth.GetClaims(c)
-	if !exists {
-		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_CLAIMS", "Token claims not found", nil)
-		return
-	}
-
-	user := UserInfo{
-		ID:        userID,
-		Email:     claims.RegisteredClaims.Subject,
-		Name:      "",
-		CreatedAt: claims.RegisteredClaims.IssuedAt.Time.Format(time.RFC3339),
-	}
-
+	// This function is now handled by the auth handlers
+	// Redirect to the auth user endpoint
 	middleware.RespondWithOK(c, gin.H{
-		"user": user,
-		"token_info": gin.H{
-			"issued_at":  claims.RegisteredClaims.IssuedAt.Time,
-			"expires_at": claims.RegisteredClaims.ExpiresAt.Time,
-			"issuer":     claims.RegisteredClaims.Issuer,
-		},
+		"message":  "User profile is handled by auth handlers",
+		"endpoint": "/api/v1/auth/me",
 	})
 }
 
 func GetSession(c *gin.Context) {
-	userID, exists := auth.GetUserID(c)
-	if !exists {
-		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found in token", nil)
-		return
-	}
-
-	claims, exists := auth.GetClaims(c)
-	if !exists {
-		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_CLAIMS", "Token claims not found", nil)
-		return
-	}
-
-	now := time.Now().UTC()
-
-	sessionInfo := gin.H{
-		"authenticated": true,
-		"user_id":       userID,
-		"email":         claims.RegisteredClaims.Subject,
-		"session_start": claims.RegisteredClaims.IssuedAt.Time.Format(time.RFC3339),
-		"expires_at":    claims.RegisteredClaims.ExpiresAt.Time.Format(time.RFC3339),
-		"current_time":  now.Format(time.RFC3339),
-		"token_valid":   claims.RegisteredClaims.ExpiresAt.Time.After(now),
-		"issuer":        claims.RegisteredClaims.Issuer,
-		"audience":      claims.RegisteredClaims.Audience,
-	}
-
+	// This function is now handled by the auth handlers
+	// Redirect to the auth session endpoint
 	middleware.RespondWithOK(c, gin.H{
-		"session": sessionInfo,
-		"message": "Session is active and user is authenticated",
+		"message":  "Session info is handled by auth handlers",
+		"endpoint": "/api/v1/auth/status",
 	})
-}
-
-func generateID() string {
-	return time.Now().Format("20060102150405") + "_" + time.Now().Format("000")
 }

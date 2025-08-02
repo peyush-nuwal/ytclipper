@@ -1,17 +1,15 @@
-import Loading from '@/components/loading';
-import { FloatingNoteTaker } from '@/components/timestamps/floating-note-taking';
-import { TimestampCard } from '@/components/timestamps/timestamp-card';
-import { YouTubePlayer } from '@/components/timestamps/youtube-player';
-import { useYouTubePlayer } from '@/hooks/youtube-player';
+import { AIChat, NotesPanel } from '@/components/notes';
+import { VideoPlayer } from '@/components/video';
+import { extractVideoId } from '@/lib/utils';
+import { useGenerateSummaryMutation } from '@/services/timestamps';
 import {
-  useCreateTimestampMutation,
-  useDeleteTimestampMutation,
-  useGetTimestampsQuery,
-} from '@/services/timestamps';
-import '@uiw/react-markdown-preview/markdown.css';
-import MDEditor from '@uiw/react-md-editor';
-import '@uiw/react-md-editor/markdown-editor.css';
-import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -19,117 +17,80 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  toast,
 } from '@ytclipper/ui';
-import { StickyNote } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import {
+  Bot,
+  Check,
+  Copy,
+  FileText,
+  Loader2,
+  Play,
+  Sparkles,
+} from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate, useParams } from 'react-router';
 
 export const TimestampsPage = () => {
   const { videoId } = useParams<{ videoId: string }>();
-  const [isPlayerReady, setIsPlayerReady] = useState(false);
-  const { jumpToTimestamp, playerRef } = useYouTubePlayer();
-  const [isFloatingNoteOpen, setIsFloatingNoteOpen] = useState(false);
-  const [activeNote, setActiveNote] = useState<string>('');
+  const navigate = useNavigate();
+  const [videoUrl, setVideoUrl] = useState('');
+  const [summary, setSummary] = useState('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const {
-    data: timestampsData,
-    isLoading,
-    refetch,
-  } = useGetTimestampsQuery(videoId || '', {
-    skip: !videoId,
-  });
-  const [deleteTimestamp] = useDeleteTimestampMutation();
-  const [createTimestamp, { isLoading: isCreating }] =
-    useCreateTimestampMutation();
+  const [generateSummary] = useGenerateSummaryMutation();
 
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingNote, setEditingNote] = useState('');
-  const [currentTimestamp, setCurrentTimestamp] = useState(0);
+  const handleVideoUrlSubmit = () => {
+    if (videoUrl) {
+      const id = extractVideoId(videoUrl);
+      if (id) {
+        navigate(`/timestamps/${id}`);
+        setVideoUrl('');
+        toast('Video loaded successfully!', {
+          description: 'You can now start taking notes at any timestamp.',
+        });
+      } else {
+        toast('Invalid YouTube URL', {
+          description: 'Please enter a valid YouTube video URL.',
+        });
+      }
+    }
+  };
 
-  const handleFloatingNoteAdd = async (data: {
-    title: string;
-    note: string;
-    tags: string[];
-    timestamp: number;
-  }) => {
+  const handleGenerateSummary = async () => {
     if (!videoId) {
       return;
     }
 
-    await createTimestamp({
-      video_id: videoId,
-      timestamp: data.timestamp,
-      title: data.title,
-      note: data.note,
-      tags: data.tags,
-    }).unwrap();
-
-    refetch();
-    setIsFloatingNoteOpen(false);
-  };
-
-  useEffect(() => {
-    if (!isPlayerReady || !playerRef?.current) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      const currentTime = playerRef.current?.getCurrentTime?.();
-      if (typeof currentTime === 'number') {
-        setCurrentTimestamp(currentTime);
-
-        // Highlight matching note in real-time
-        const match = timestampsData?.data?.timestamps.find((ts) => {
-          return Math.abs(ts.timestamp - currentTime) < 3; // within 3 seconds window
-        });
-        if (match && match.note !== activeNote) {
-          setActiveNote(match.note);
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isPlayerReady, playerRef, timestampsData, activeNote]);
-
-  const handleTimestampClick = (seconds: number) => {
-    if (isPlayerReady) {
-      jumpToTimestamp(seconds);
-    }
-  };
-
-  const handlePlayerReady = () => {
-    setIsPlayerReady(true);
-  };
-
-  const handlePlayerError = (error: number) => {
-    console.error('Player error:', error);
-    setIsPlayerReady(false);
-  };
-
-  const startEditing = (id: string, currentNote: string) => {
-    setEditingId(id);
-    setEditingNote(currentNote);
-  };
-
-  const saveEdit = async (id: string, newNote: string) => {
+    setIsGeneratingSummary(true);
     try {
-      console.log('Saving edit for ID:', id, 'with note:', newNote);
-      setEditingId(null);
+      const response = await generateSummary({
+        video_id: videoId,
+        type: 'brief',
+      }).unwrap();
+
+      setSummary(response.data.summary);
+      toast('Summary generated successfully!', {
+        description: 'AI has analyzed your video notes and created a summary.',
+      });
     } catch (error) {
-      console.error('Failed to update timestamp:', error);
+      console.error('Failed to generate summary:', error);
+      toast('Failed to generate summary', {
+        description: 'Please try again later.',
+      });
+    } finally {
+      setIsGeneratingSummary(false);
     }
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-  };
-
-  const handleDeleteTimestamp = async (id: string) => {
+  const copyToClipboard = async (text: string) => {
     try {
-      await deleteTimestamp(id).unwrap();
-      refetch();
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error('Failed to delete timestamp:', error);
+      console.error('Failed to copy to clipboard:', error);
     }
   };
 
@@ -148,213 +109,148 @@ export const TimestampsPage = () => {
     );
   }
 
-  if (isLoading) {
-    return <Loading />;
-  }
-
   return (
-    <div className='h-screen overflow-hidden'>
-      <ResizablePanelGroup direction='horizontal' className='h-full'>
-        {/* Left Panel - Video Player */}
-        <ResizablePanel defaultSize={75} minSize={50}>
-          <div className='h-full flex flex-col relative'>
-            <div className='aspect-video w-full bg-black'>
-              <YouTubePlayer
-                ref={playerRef}
+    <div className='flex flex-col'>
+      <main className='mx-auto max-w-9xl px-4 sm:px-6 lg:px-8 flex-1'>
+        <ResizablePanelGroup direction='horizontal' className='min-h-full'>
+          <ResizablePanel defaultSize={60} minSize={40}>
+            <div className='h-full pr-2'>
+              <VideoPlayer
                 videoId={videoId}
-                onReady={handlePlayerReady}
-                onError={handlePlayerError}
-                className='w-full h-full'
+                className='w-full h-full rounded-b-none'
               />
 
-              {/* Floating Note Button */}
-              <button
-                onClick={() => setIsFloatingNoteOpen(true)}
-                className='absolute bottom-4 right-4 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 z-10'
-                title='Take a quick note'
-              >
-                <StickyNote size={20} />
-              </button>
-            </div>
-
-            {/* Empty space or additional content can go here */}
-            <div className='flex-1 bg-gray-50'>
-              {/* You can add video controls, description, or other content here */}
-            </div>
-          </div>
-        </ResizablePanel>
-
-        <ResizableHandle />
-
-        {/* Right Panel - Notes & Timestamps with Tabs */}
-        <ResizablePanel defaultSize={25} minSize={20} maxSize={50}>
-          <div className='h-full bg-white border-l border-gray-200 flex flex-col'>
-            {/* Header */}
-            <div className='p-4 border-b border-gray-200 bg-gray-50'>
-              <div className='flex items-center justify-between mb-2'>
-                <h2 className='text-lg font-bold text-gray-900 flex items-center gap-2'>
-                  🕒 Notes & Timestamps
-                </h2>
-                <span className='text-sm text-gray-500 bg-gray-200 px-2 py-1 rounded-full'>
-                  {timestampsData?.data?.timestamps?.length || 0} total
-                </span>
-              </div>
-            </div>
-
-            {/* Tabs Section */}
-            <Tabs defaultValue='current-note' className='flex-1 flex flex-col'>
-              <div className='px-4 pt-3 border-b border-gray-200'>
-                <TabsList className='grid w-full grid-cols-2'>
-                  <TabsTrigger value='current-note'>Current Note</TabsTrigger>
-                  <TabsTrigger value='all-notes'>All Notes</TabsTrigger>
-                </TabsList>
+              <div className='flex items-center justify-between mt-4'>
+                <div className='w-full'>
+                  <div className='flex gap-2'>
+                    <Input
+                      placeholder='Paste YouTube video URL here...'
+                      value={videoUrl}
+                      onChange={(e) => setVideoUrl(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === 'Enter' && handleVideoUrlSubmit()
+                      }
+                    />
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={handleVideoUrlSubmit}
+                      className='text-xs h-10 px-4'
+                    >
+                      <Play className='h-3 w-3 mr-1' />
+                      Load Video
+                    </Button>
+                  </div>
+                </div>
               </div>
 
-              {/* Current Note Tab */}
-              <TabsContent
-                value='current-note'
-                className='flex-1 p-0 m-0 overflow-hidden'
-              >
-                <div className='h-full flex flex-col p-4 overflow-hidden'>
-                  <div className='flex-1 overflow-y-auto'>
-                    {activeNote ? (
-                      <div className='h-full flex flex-col space-y-3'>
-                        {!editingId ? (
-                          // Markdown rendered view
-                          <div className='flex-1 overflow-auto border border-blue-100 bg-blue-50 rounded-lg p-4'>
-                            <div className='text-xs text-blue-600 mb-2 font-medium flex items-center gap-1'>
-                              <StickyNote size={12} />
-                              Active note at current time:
-                            </div>
-                            <div className='text-sm text-gray-700 whitespace-pre-line'>
-                              <MDEditor.Markdown
-                                source={activeNote}
-                                style={{ background: 'transparent' }}
-                              />
-                            </div>
-                            <div className='mt-4'>
-                              <button
-                                className='px-4 py-1 text-sm font-medium rounded bg-blue-500 text-white hover:bg-blue-600'
-                                onClick={() => setEditingId('active')}
-                              >
-                                Edit
-                              </button>
-                            </div>
-                          </div>
+              <Card className='mt-4'>
+                <CardHeader className='pb-3'>
+                  <div className='flex items-center justify-between'>
+                    <CardTitle className='text-lg flex items-center gap-2'>
+                      <FileText className='h-5 w-5' />
+                      Video Summary
+                    </CardTitle>
+                    <div className='flex gap-2'>
+                      {summary ? (
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => copyToClipboard(summary)}
+                        >
+                          {copied ? (
+                            <Check className='h-4 w-4 text-green-600' />
+                          ) : (
+                            <Copy className='h-4 w-4' />
+                          )}
+                        </Button>
+                      ) : null}
+                      <Button
+                        size='sm'
+                        onClick={handleGenerateSummary}
+                        disabled={isGeneratingSummary}
+                        className='h-10 px-4'
+                      >
+                        {isGeneratingSummary ? (
+                          <>
+                            <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                            Generating...
+                          </>
                         ) : (
-                          // Editable markdown editor
-                          <div className='flex-1 overflow-auto border border-yellow-200 bg-yellow-50 rounded-lg p-4'>
-                            <div className='text-xs text-yellow-600 mb-2 font-medium flex items-center gap-1'>
-                              <StickyNote size={12} />
-                              Editing current note:
-                            </div>
-                            <div className='mb-2'>
-                              <MDEditor
-                                value={editingNote}
-                                onChange={(val) => setEditingNote(val || '')}
-                                height={200}
-                              />
-                            </div>
-                            <div className='flex gap-2'>
-                              <button
-                                className='px-3 py-1 text-sm font-medium bg-green-500 text-white rounded hover:bg-green-600'
-                                onClick={() => {
-                                  const match =
-                                    timestampsData?.data?.timestamps.find(
-                                      (ts) =>
-                                        Math.abs(
-                                          ts.timestamp - currentTimestamp,
-                                        ) < 3,
-                                    );
-                                  if (match) {
-                                    saveEdit(match.id, editingNote);
-                                  }
-                                }}
-                              >
-                                Save
-                              </button>
-                              <button
-                                className='px-3 py-1 text-sm font-medium bg-gray-300 text-gray-800 rounded hover:bg-gray-400'
-                                onClick={cancelEdit}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
+                          <>
+                            <Sparkles className='h-4 w-4 mr-2' />
+                            Generate Summary
+                          </>
                         )}
-                      </div>
-                    ) : (
-                      <div className='flex items-center justify-center h-full text-gray-500 text-sm'>
-                        <div className='text-center'>
-                          <StickyNote
-                            size={48}
-                            className='mx-auto mb-3 text-gray-300'
-                          />
-                          <p className='font-medium'>
-                            No note for current time
-                          </p>
-                          <p className='text-xs mt-1 text-gray-400'>
-                            Notes will appear here when you reach timestamped
-                            sections
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </TabsContent>
-
-              {/* All Notes Tab */}
-              <TabsContent
-                value='all-notes'
-                className='flex-1 p-0 m-0 overflow-hidden'
-              >
-                <div className='h-full flex flex-col p-4 overflow-hidden'>
-                  <div className='flex-1 overflow-y-auto space-y-3'>
-                    {timestampsData?.data?.timestamps?.length ? (
-                      timestampsData.data.timestamps.map((timestamp) => (
-                        <TimestampCard
-                          key={timestamp.id}
-                          timestamp={timestamp}
-                          isEditing={editingId === timestamp.id}
-                          onSeek={handleTimestampClick}
-                          onEditStart={(id) => startEditing(id, timestamp.note)}
-                          onEditSave={saveEdit}
-                          onEditCancel={cancelEdit}
-                          onDelete={handleDeleteTimestamp}
-                          editNoteValue={editingNote}
-                          onEditNoteChange={setEditingNote}
-                        />
-                      ))
-                    ) : (
-                      <div className='text-center text-sm text-gray-500 py-8'>
-                        <StickyNote
-                          size={48}
-                          className='mx-auto mb-3 text-gray-300'
-                        />
-                        <p className='font-medium'>No timestamps added yet</p>
-                        <p className='text-xs mt-1 text-gray-400'>
-                          Click the floating note button on the video to start
-                          taking notes!
-                        </p>
+                </CardHeader>
+                <CardContent>
+                  {summary ? (
+                    <div className='space-y-3'>
+                      <div className='bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap'>
+                        {summary}
                       </div>
-                    )}
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+                      <div className='flex flex-wrap gap-2'>
+                        <Badge variant='outline'>#ai-generated</Badge>
+                        <Badge variant='outline'>#video-summary</Badge>
+                        <Badge variant='outline'>#key-points</Badge>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className='space-y-3'>
+                      <p className='text-sm text-muted-foreground'>
+                        This area will contain an AI-generated summary of the
+                        video content, key points, and important timestamps once
+                        you generate it.
+                      </p>
+                      <div className='flex flex-wrap gap-2'>
+                        <Badge variant='outline'>#tutorial</Badge>
+                        <Badge variant='outline'>#educational</Badge>
+                        <Badge variant='outline'>#programming</Badge>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </ResizablePanel>
 
-      {/* Floating Note Taker Component */}
-      <FloatingNoteTaker
-        isOpen={isFloatingNoteOpen}
-        onClose={() => setIsFloatingNoteOpen(false)}
-        currentTimestamp={currentTimestamp}
-        onAddTimestamp={handleFloatingNoteAdd}
-        isCreating={isCreating}
-      />
+          <ResizableHandle />
+
+          <ResizablePanel defaultSize={40} minSize={30}>
+            <div className='h-full pl-2'>
+              <Tabs defaultValue='notes' className='h-full flex flex-col'>
+                <TabsList className='grid w-full grid-cols-2'>
+                  <TabsTrigger
+                    value='notes'
+                    className='flex items-center gap-2'
+                  >
+                    <FileText className='h-4 w-4' />
+                    Notes
+                  </TabsTrigger>
+                  <TabsTrigger value='ai' className='flex items-center gap-2'>
+                    <Bot className='h-4 w-4' />
+                    AI Chat
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value='notes' className='flex-1 mt-4'>
+                  <NotesPanel videoId={videoId} />
+                </TabsContent>
+
+                <TabsContent value='ai' className='flex-1 mt-4'>
+                  <AIChat
+                    videoId={videoId}
+                    currentTimestamp={Date.now() / 1000}
+                  />
+                </TabsContent>
+              </Tabs>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </main>
     </div>
   );
 };

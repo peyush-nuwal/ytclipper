@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
-    "dev:app": "pnpm --filter app dev",
+    "dev:app": "pnpm --filter @ytclipper/ui build && pnpm --filter app dev",
     "dev:landing": "pnpm --filter landing dev",
     "dev:extension": "pnpm --filter @ytclipper/extension dev",
     "dev:extension:firefox": "pnpm --filter @ytclipper/extension dev:firefox",

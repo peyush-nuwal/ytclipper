@@ -44,6 +44,10 @@ export const useYouTubePlayer = () => {
     }
   }, []);
 
+  const getTitle = useCallback(() => {
+    return playerRef.current?.getVideoData?.()?.title ?? '';
+  }, []);
+
   return {
     playerRef,
     seekTo,
@@ -52,5 +56,6 @@ export const useYouTubePlayer = () => {
     getCurrentTime,
     getDuration,
     jumpToTimestamp,
+    getTitle,
   };
 };

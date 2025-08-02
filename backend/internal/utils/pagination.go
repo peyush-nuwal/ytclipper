@@ -1,4 +1,3 @@
-// Package utils this is for pagination
 package utils
 
 import (

@@ -15,16 +15,14 @@ import (
 )
 
 type AuthHandlers struct {
-	googleService  *GoogleOAuthService
 	authMiddleware *AuthMiddleware
 	jwtService     *JWTService
 	emailService   *EmailService
 	db             *database.Database
 }
 
-func NewAuthHandlers(googleService *GoogleOAuthService, authMiddleware *AuthMiddleware, jwtService *JWTService, emailService *EmailService, db *database.Database) *AuthHandlers {
+func NewAuthHandlers(authMiddleware *AuthMiddleware, jwtService *JWTService, emailService *EmailService, db *database.Database) *AuthHandlers {
 	return &AuthHandlers{
-		googleService:  googleService,
 		authMiddleware: authMiddleware,
 		jwtService:     jwtService,
 		emailService:   emailService,
@@ -32,7 +30,6 @@ func NewAuthHandlers(googleService *GoogleOAuthService, authMiddleware *AuthMidd
 	}
 }
 
-// GetCurrentUser returns the current authenticated user
 func (h *AuthHandlers) GetCurrentUser() gin.HandlerFunc {
 	return h.authMiddleware.RequireAuth()
 }
@@ -65,11 +62,6 @@ func (h *AuthHandlers) GetCurrentUserHandler() gin.HandlerFunc {
 			authMethods = append(authMethods, "password")
 		}
 
-		// primaryProvider := "password"
-		// if user.Provider != nil {
-		// primaryProvider = *user.Provider
-		// }
-
 		accessToken, err1 := c.Cookie("access_token")
 		refreshToken, err2 := c.Cookie("refresh_token")
 
@@ -101,7 +93,6 @@ func (h *AuthHandlers) GetCurrentUserHandler() gin.HandlerFunc {
 	}
 }
 
-// GetAccessToken returns the current access token (for API usage)
 func (h *AuthHandlers) GetAccessToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		accessToken, err := c.Cookie("access_token")
@@ -116,17 +107,14 @@ func (h *AuthHandlers) GetAccessToken() gin.HandlerFunc {
 	}
 }
 
-// RefreshTokenHandler handles refreshing access tokens using refresh tokens
 func (h *AuthHandlers) RefreshTokenHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get refresh token from cookie
 		refreshToken, err := c.Cookie("refresh_token")
 		if err != nil {
 			middleware.RespondWithError(c, http.StatusUnauthorized, "NO_REFRESH_TOKEN", "No refresh token found", nil)
 			return
 		}
 
-		// Generate new token pair
 		tokenPair, err := h.jwtService.RefreshAccessToken(refreshToken)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to refresh token")
@@ -134,70 +122,10 @@ func (h *AuthHandlers) RefreshTokenHandler() gin.HandlerFunc {
 			return
 		}
 
-		// Set new cookies
 		h.jwtService.SetTokenCookies(c, tokenPair.AccessToken, tokenPair.RefreshToken)
 
-		// Return new tokens
 		middleware.RespondWithOK(c, tokenPair)
 	}
-}
-
-func (h *AuthHandlers) SetupAuthRoutes(r *gin.Engine) {
-	v1 := r.Group("/api/v1")
-
-	auth := v1.Group("/auth")
-	{
-		auth.GET("/google/login", h.googleService.LoginHandler())
-		auth.GET("/google/callback", h.googleService.CallbackHandler())
-
-		auth.POST("/register", h.RegisterHandler)
-		auth.POST("/login", h.LoginHandler)
-		auth.POST("/forgot-password", h.ForgotPasswordHandler)
-		auth.POST("/reset-password", h.ResetPasswordHandler)
-		auth.POST("/verify-email", h.VerifyEmailHandler)
-		auth.GET("/status", h.authMiddleware.RequireAuth(), h.AuthStatusHandler)
-
-		auth.POST("/add-password", h.authMiddleware.RequireAuth(), h.AddPasswordHandler)
-
-		auth.POST("/logout", h.googleService.LogoutHandler())
-		auth.POST("/refresh", h.RefreshTokenHandler())
-
-		auth.GET("/token", h.authMiddleware.RequireAuth(), h.GetAccessToken())
-	}
-}
-
-// RegisterRequest represents the registration request payload
-type RegisterRequest struct {
-	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
-}
-
-// LoginRequest represents the login request payload
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-}
-
-// ForgotPasswordRequest represents the forgot password request payload
-type ForgotPasswordRequest struct {
-	Email string `json:"email" binding:"required,email"`
-}
-
-// ResetPasswordRequest represents the reset password request payload
-type ResetPasswordRequest struct {
-	Token    string `json:"token" binding:"required"`
-	Password string `json:"password" binding:"required,min=8"`
-}
-
-// VerifyEmailRequest represents the email verification request payload
-type VerifyEmailRequest struct {
-	Token string `json:"token" binding:"required"`
-}
-
-// AddPasswordRequest represents the request to add password authentication
-type AddPasswordRequest struct {
-	Password string `json:"password" binding:"required,min=8"`
 }
 
 func (h *AuthHandlers) RegisterHandler(c *gin.Context) {
@@ -279,7 +207,9 @@ func (h *AuthHandlers) LoginHandler(c *gin.Context) {
 		Where("email = ?", req.Email).
 		Scan(ctx)
 	if err != nil {
-		middleware.RespondWithError(c, 404, "USER_NOT_FOUND", "user not found", nil)
+		middleware.RespondWithError(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found", gin.H{
+			"email": req.Email,
+		})
 		return
 	}
 
@@ -289,24 +219,19 @@ func (h *AuthHandlers) LoginHandler(c *gin.Context) {
 	}
 
 	if err = CheckPassword(req.Password, user.Password); err != nil {
-		middleware.RespondWithError(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid credentials", nil)
+		middleware.RespondWithError(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid credentials", gin.H{
+			"email": req.Email,
+		})
 		return
 	}
 
-	/* Skip this for now
-	if !user.EmailVerified {
-		middleware.RespondWithError(c, http.StatusUnauthorized, "EMAIL_NOT_VERIFIED", "Please verify your email before logging in", nil)
-		return
-	}
-	*/
-
-	accessToken, accessTokenExpiry, err := h.jwtService.GenerateAccessToken(user.ID)
+	accessToken, accessTokenExpiry, err := h.jwtService.GenerateAccessToken(user.ID.String())
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "TOKEN_GENERATION_ERROR", "Failed to generate access token", nil)
 		return
 	}
 
-	refreshToken, refreshTokenExpiry, err := h.jwtService.GenerateRefreshToken(user.ID)
+	refreshToken, refreshTokenExpiry, err := h.jwtService.GenerateRefreshToken(user.ID.String())
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "TOKEN_GENERATION_ERROR", "Failed to generate refresh token", nil)
 		return
@@ -344,28 +269,24 @@ func (h *AuthHandlers) ForgotPasswordHandler(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// Find user by email
 	var user models.User
 	err := h.db.DB.NewSelect().
 		Model(&user).
 		Where("email = ?", req.Email).
 		Scan(ctx)
 	if err != nil {
-		// Don't reveal if email exists or not
 		middleware.RespondWithOK(c, gin.H{
 			"message": "If the email exists, a password reset link has been sent.",
 		})
 		return
 	}
 
-	// Generate reset token
 	resetToken, err := h.emailService.GenerateToken()
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "TOKEN_GENERATION_ERROR", "Failed to generate reset token", err.Error())
 		return
 	}
 
-	// Update user with reset token
 	user.PasswordResetToken = resetToken
 	user.PasswordResetExpiry = &[]time.Time{h.emailService.GetTokenExpiry()}[0]
 
@@ -374,7 +295,6 @@ func (h *AuthHandlers) ForgotPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	// Send reset email
 	if err := h.emailService.SendPasswordResetEmail(user.Email, resetToken); err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "EMAIL_SENDING_ERROR", "Failed to send password reset email", err.Error())
 		return
@@ -385,7 +305,6 @@ func (h *AuthHandlers) ForgotPasswordHandler(c *gin.Context) {
 	})
 }
 
-// ResetPasswordHandler handles password reset with token
 func (h *AuthHandlers) ResetPasswordHandler(c *gin.Context) {
 	var req ResetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -395,7 +314,6 @@ func (h *AuthHandlers) ResetPasswordHandler(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// Find user by reset token
 	var user models.User
 	err := h.db.DB.NewSelect().
 		Model(&user).
@@ -406,20 +324,17 @@ func (h *AuthHandlers) ResetPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	// Validate new password
 	if err = ValidatePassword(req.Password); err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_PASSWORD", "Invalid password", err.Error())
 		return
 	}
 
-	// Hash new password
 	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "HASHING_ERROR", "Failed to hash password", err.Error())
 		return
 	}
 
-	// Update user password and clear reset token
 	user.Password = hashedPassword
 	user.PasswordResetToken = ""
 	user.PasswordResetExpiry = nil
@@ -434,7 +349,6 @@ func (h *AuthHandlers) ResetPasswordHandler(c *gin.Context) {
 	})
 }
 
-// VerifyEmailHandler handles email verification
 func (h *AuthHandlers) VerifyEmailHandler(c *gin.Context) {
 	var req VerifyEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -444,7 +358,6 @@ func (h *AuthHandlers) VerifyEmailHandler(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// Find user by verification token
 	var user models.User
 	err := h.db.DB.NewSelect().
 		Model(&user).
@@ -455,7 +368,6 @@ func (h *AuthHandlers) VerifyEmailHandler(c *gin.Context) {
 		return
 	}
 
-	// Update user as verified
 	user.EmailVerified = true
 	user.EmailVerificationToken = ""
 	user.EmailVerificationExpiry = nil
@@ -471,10 +383,66 @@ func (h *AuthHandlers) VerifyEmailHandler(c *gin.Context) {
 }
 
 func (h *AuthHandlers) AuthStatusHandler(c *gin.Context) {
-	c.Status(http.StatusNoContent)
+	user, exists := GetUser(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NOT_AUTHENTICATED", "User not authenticated", nil)
+		return
+	}
+
+	accessToken, _ := c.Cookie("access_token")
+	refreshToken, _ := c.Cookie("refresh_token")
+
+	var tokenValid bool
+	var tokenError string
+	if accessToken != "" {
+		_, err := h.jwtService.ValidateToken(accessToken)
+		tokenValid = err == nil
+		if err != nil {
+			tokenError = err.Error()
+		}
+	}
+
+	middleware.RespondWithOK(c, gin.H{
+		"user":          user,
+		"token_valid":   tokenValid,
+		"token_error":   tokenError,
+		"refresh_token": refreshToken,
+	})
 }
 
-// AddPasswordHandler allows users to add password authentication to their Google-only accounts
+func (h *AuthHandlers) DebugUserHandler(c *gin.Context) {
+	email := c.Query("email")
+	if email == "" {
+		middleware.RespondWithError(c, http.StatusBadRequest, "MISSING_EMAIL", "Email parameter is required", nil)
+		return
+	}
+
+	ctx := context.Background()
+	var user models.User
+	err := h.db.DB.NewSelect().
+		Model(&user).
+		Where("email = ?", email).
+		Scan(ctx)
+
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found in database", err.Error())
+		return
+	}
+
+	middleware.RespondWithOK(c, gin.H{
+		"user": gin.H{
+			"id":             user.ID.String(),
+			"email":          user.Email,
+			"name":           user.Name,
+			"has_password":   user.Password != "",
+			"has_google_id":  user.GoogleID != "",
+			"email_verified": user.EmailVerified,
+			"created_at":     user.CreatedAt,
+			"updated_at":     user.UpdatedAt,
+		},
+	})
+}
+
 func (h *AuthHandlers) AddPasswordHandler(c *gin.Context) {
 	var req AddPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -482,7 +450,6 @@ func (h *AuthHandlers) AddPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	// Get current user from context
 	user, exists := GetUser(c)
 	if !exists {
 		middleware.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated", nil)
@@ -491,7 +458,6 @@ func (h *AuthHandlers) AddPasswordHandler(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// Check if user already has a password
 	var currentUser models.User
 	err := h.db.DB.NewSelect().
 		Model(&currentUser).
@@ -507,20 +473,17 @@ func (h *AuthHandlers) AddPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	// Validate password
 	if err = ValidatePassword(req.Password); err != nil {
 		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_PASSWORD", "Invalid password", err.Error())
 		return
 	}
 
-	// Hash password
 	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {
 		middleware.RespondWithError(c, http.StatusInternalServerError, "HASHING_ERROR", "Failed to hash password", err.Error())
 		return
 	}
 
-	// Update user with password
 	currentUser.Password = hashedPassword
 
 	if err := h.db.Update(ctx, &currentUser); err != nil {

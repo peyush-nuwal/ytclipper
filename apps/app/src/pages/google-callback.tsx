@@ -33,8 +33,8 @@ export const GoogleCallback: React.FC = () => {
 
           console.log('User data fetched successfully:', userResult);
           if (userResult.success && userResult?.data) {
-            dispatch(setUser(userResult.data));
-            navigate('/dashboard');
+            dispatch(setUser(userResult.data.user));
+            navigate('/videos');
             return;
           }
 
@@ -42,7 +42,7 @@ export const GoogleCallback: React.FC = () => {
           const refreshResult = await refreshToken().unwrap();
           if (refreshResult) {
             dispatch(setUser(refreshResult));
-            navigate('/dashboard');
+            navigate('/videos');
           } else {
             throw new Error(
               'Failed to get user data after Google authentication',

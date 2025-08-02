@@ -10,6 +10,8 @@ func AllModels() []interface{} {
 		(*Video)(nil),
 		(*Clip)(nil),
 		(*Tag)(nil),
+		(*Timestamp)(nil),
+		(*TimestampTag)(nil),
 		(*Playlist)(nil),
 		(*Favorite)(nil),
 		(*SharedPlaylist)(nil),

@@ -40,7 +40,6 @@ export const RegisterPage = () => {
     }
   };
 
-  // Password strength calculation
   const calculatePasswordStrength = (password: string) => {
     let strength = 0;
     if (password.length >= 8) {
@@ -110,10 +109,10 @@ export const RegisterPage = () => {
   const passwordsMatch = formData.password === formData.confirmPassword;
 
   return (
-    <Card className='max-w-md w-full shadow-2xl border-0 bg-white/80 backdrop-blur-sm relative z-10'>
-      <CardHeader className='space-y-2 pb-6'>
-        <div className='flex justify-center mb-4'>
-          <div className='w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center'>
+    <Card className='w-full shadow-2xl border-0 bg-white/80 backdrop-blur-sm'>
+      <CardHeader className='space-y-2 pb-4'>
+        <div className='flex justify-center mb-3'>
+          <div className='w-12 h-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center'>
             <svg
               className='w-6 h-6 text-white'
               fill='currentColor'
@@ -131,7 +130,7 @@ export const RegisterPage = () => {
         </p>
       </CardHeader>
 
-      <CardContent className='space-y-6'>
+      <CardContent className='space-y-4'>
         {error ? (
           <div className='flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm'>
             <AlertCircle className='w-4 h-4 flex-shrink-0' />
@@ -139,7 +138,7 @@ export const RegisterPage = () => {
           </div>
         ) : null}
 
-        <form onSubmit={handleSubmit} className='space-y-5'>
+        <form onSubmit={handleSubmit} className='space-y-4'>
           <div className='space-y-2'>
             <label
               htmlFor='name'
@@ -154,7 +153,7 @@ export const RegisterPage = () => {
               value={formData.name}
               onChange={handleInputChange}
               required
-              className='w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white'
+              className='w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white hover:bg-gray-50'
               placeholder='Enter your full name'
             />
           </div>
@@ -173,7 +172,7 @@ export const RegisterPage = () => {
               value={formData.email}
               onChange={handleInputChange}
               required
-              className='w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white'
+              className='w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white hover:bg-gray-50'
               placeholder='Enter your email'
             />
           </div>
@@ -193,7 +192,7 @@ export const RegisterPage = () => {
                 value={formData.password}
                 onChange={handleInputChange}
                 required
-                className='w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white'
+                className='w-full px-3 py-2.5 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white hover:bg-gray-50'
                 placeholder='Enter your password'
               />
               <button
@@ -202,16 +201,16 @@ export const RegisterPage = () => {
                 className='absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors'
               >
                 {showPassword ? (
-                  <EyeOff className='w-5 h-5' />
+                  <EyeOff className='w-4 h-4' />
                 ) : (
-                  <Eye className='w-5 h-5' />
+                  <Eye className='w-4 h-4' />
                 )}
               </button>
             </div>
 
             {/* Password strength indicator for signup */}
             {formData.password ? (
-              <div className='space-y-2'>
+              <div className='space-y-1'>
                 <div className='flex items-center gap-2'>
                   <div className='flex-1 h-2 bg-gray-200 rounded-full overflow-hidden'>
                     <div
@@ -250,12 +249,12 @@ export const RegisterPage = () => {
                 value={formData.confirmPassword}
                 onChange={handleInputChange}
                 required
-                className={`w-full px-4 py-3 pr-12 border rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white ${
+                className={`w-full px-3 py-2.5 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 bg-white hover:bg-gray-50 ${
                   formData.confirmPassword && !passwordsMatch
                     ? 'border-red-300 focus:ring-red-500'
                     : formData.confirmPassword && passwordsMatch
                       ? 'border-green-300 focus:ring-green-500'
-                      : 'border-gray-200 focus:ring-blue-500'
+                      : 'border-gray-200 focus:ring-orange-500'
                 }`}
                 placeholder='Confirm your password'
               />
@@ -265,17 +264,17 @@ export const RegisterPage = () => {
                 className='absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors'
               >
                 {showConfirmPassword ? (
-                  <EyeOff className='w-5 h-5' />
+                  <EyeOff className='w-4 h-4' />
                 ) : (
-                  <Eye className='w-5 h-5' />
+                  <Eye className='w-4 h-4' />
                 )}
               </button>
               {formData.confirmPassword ? (
                 <div className='absolute right-10 top-1/2 transform -translate-y-1/2'>
                   {passwordsMatch ? (
-                    <CheckCircle2 className='w-5 h-5 text-green-500' />
+                    <CheckCircle2 className='w-4 h-4 text-green-500' />
                   ) : (
-                    <AlertCircle className='w-5 h-5 text-red-500' />
+                    <AlertCircle className='w-4 h-4 text-red-500' />
                   )}
                 </div>
               ) : null}
@@ -290,7 +289,7 @@ export const RegisterPage = () => {
             disabled={
               currentlyLoading || !passwordsMatch || passwordStrength < 3
             }
-            className='w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none'
+            className='w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-2.5 rounded-lg font-semibold transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none'
           >
             {currentlyLoading ? (
               <div className='flex items-center gap-2'>
@@ -318,7 +317,7 @@ export const RegisterPage = () => {
           onClick={handleGoogleLogin}
           disabled={currentlyLoading}
           variant='outline'
-          className='w-full py-3 rounded-xl border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none'
+          className='w-full py-2.5 rounded-lg border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none'
         >
           <div className='flex items-center gap-3'>
             <svg
@@ -351,7 +350,7 @@ export const RegisterPage = () => {
         <div className='text-center'>
           <Link
             to='/auth/login'
-            className='text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200 hover:underline'
+            className='text-sm text-orange-600 hover:text-orange-800 font-medium transition-colors duration-200 hover:underline'
           >
             Already have an account? Sign in
           </Link>
