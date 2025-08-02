@@ -12,6 +12,7 @@ import (
 	"github.com/shubhamku044/ytclipper/internal/handlers"
 	authhandlers "github.com/shubhamku044/ytclipper/internal/handlers/auth"
 	"github.com/shubhamku044/ytclipper/internal/handlers/timestamps"
+	"github.com/shubhamku044/ytclipper/internal/handlers/videos"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
 )
 
@@ -46,6 +47,7 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 	authHandlers := authhandlers.NewAuthHandlers(authMiddleware, jwtService, emailService, db)
 	oauthHandlers := authhandlers.NewOAuthHandlers(&cfg.Google, &cfg.Auth, jwtService, db, &cfg.Server)
 	timestampHandlers := timestamps.NewTimestampsHandlers(db, &cfg.OpenAI)
+	videoHandlers := videos.NewVideoHandlers(db)
 
 	r.NoRoute(func(c *gin.Context) {
 		middleware.RespondWithError(c, http.StatusNotFound, "NOT_FOUND", "The requested resource could not be found", gin.H{
@@ -94,28 +96,8 @@ func SetupRouter(db *database.Database, cfg *config.Config) *gin.Engine {
 		protected := v1.Group("")
 		protected.Use(authMiddleware.RequireAuth())
 		{
-			timestampRoutes := protected.Group("/timestamps")
-			{
-				timestampRoutes.GET("", timestampHandlers.GetAllTimestamps)
-				timestampRoutes.GET("/", timestampHandlers.GetAllTimestamps)
-				timestampRoutes.POST("", timestampHandlers.CreateTimestamp)
-				timestampRoutes.POST("/", timestampHandlers.CreateTimestamp)
-				timestampRoutes.GET("/:id", timestampHandlers.GetTimestampsByVideoID)
-				timestampRoutes.DELETE("/:id", timestampHandlers.DeleteTimestamp)
-				timestampRoutes.DELETE("", timestampHandlers.DeleteMultipleTimestamps)
-				timestampRoutes.DELETE("/", timestampHandlers.DeleteMultipleTimestamps)
-				timestampRoutes.GET("/tags", timestampHandlers.GetAllTags)
-				timestampRoutes.POST("/tags/search", timestampHandlers.SearchTags)
-				timestampRoutes.POST("/search", timestampHandlers.SearchTimestamps)
-				timestampRoutes.POST("/summary", timestampHandlers.GenerateSummary)
-				timestampRoutes.POST("/question", timestampHandlers.AnswerQuestion)
-				timestampRoutes.POST("/embeddings/backfill", timestampHandlers.BackfillEmbeddingsAsync)
-				timestampRoutes.GET("/embeddings/status", timestampHandlers.GetEmbeddingStatus)
-				timestampRoutes.POST("/embeddings/process-user", timestampHandlers.ProcessMissingEmbeddingsForUser)
-				timestampRoutes.POST("/embeddings/process-all", timestampHandlers.ProcessAllMissingEmbeddings)
-				timestampRoutes.GET("/videos", timestampHandlers.GetAllVideosWithTimestamps)
-				timestampRoutes.GET("/recent", timestampHandlers.GetRecentTimestamps)
-			}
+			timestamps.SetupTimestampRoutes(protected, timestampHandlers, authMiddleware)
+			videos.SetupVideoRoutes(protected, videoHandlers, authMiddleware)
 		}
 	}
 

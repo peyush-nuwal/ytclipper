@@ -12,21 +12,24 @@ import (
 	"github.com/shubhamku044/ytclipper/internal/config"
 	"github.com/shubhamku044/ytclipper/internal/database"
 	authhandlers "github.com/shubhamku044/ytclipper/internal/handlers/auth"
+	"github.com/shubhamku044/ytclipper/internal/handlers/videos"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
 	"github.com/shubhamku044/ytclipper/internal/models"
 )
 
 type TimestampsHandlers struct {
-	db         *database.Database
-	aiService  *AIService
-	tagService *TagService
+	db            *database.Database
+	aiService     *AIService
+	tagService    *TagService
+	videoHandlers *videos.VideoHandlers
 }
 
 func NewTimestampsHandlers(db *database.Database, openaiAPIKey *config.OpenAIConfig) *TimestampsHandlers {
 	return &TimestampsHandlers{
-		db:         db,
-		aiService:  NewAIService(openaiAPIKey, db),
-		tagService: NewTagService(db),
+		db:            db,
+		aiService:     NewAIService(openaiAPIKey, db),
+		tagService:    NewTagService(db),
+		videoHandlers: videos.NewVideoHandlers(db),
 	}
 }
 
@@ -123,6 +126,26 @@ func (t *TimestampsHandlers) CreateTimestamp(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
+
+	videoExists, err := t.videoHandlers.VideoExists(ctx, userID, req.VideoID)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "VIDEO_CHECK_ERROR", "Failed to check video existence", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	if !videoExists {
+		placeholderTitle := "Video " + req.VideoID
+		placeholderURL := "https://youtube.com/watch?v=" + req.VideoID
+
+		if err := t.videoHandlers.CreateVideoIfNotExists(ctx, userID, req.VideoID, placeholderURL, placeholderTitle); err != nil {
+			middleware.RespondWithError(c, http.StatusInternalServerError, "VIDEO_ERROR", "Failed to create video", gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+	}
 
 	timestamp := models.Timestamp{
 		UserID:    userID,

@@ -17,7 +17,7 @@ export const injectedVideosApi = api.injectEndpoints({
       UniversalResponse<GetUserVideosResponse>,
       void
     >({
-      query: () => '/timestamps/videos',
+      query: () => '/ytclipper/videos',
     }),
   }),
 });
