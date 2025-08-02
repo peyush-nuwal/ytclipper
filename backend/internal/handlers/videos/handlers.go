@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -65,6 +66,21 @@ func (v *VideoHandlers) GetAllVideos(c *gin.Context) {
 			count = 0
 		}
 
+		var latestTimestamp *time.Time
+		err = v.db.DB.NewSelect().
+			Model((*models.Timestamp)(nil)).
+			Column("created_at").
+			Where("user_id = ? AND video_id = ? AND deleted_at IS NULL", userID, video.VideoID).
+			Order("created_at DESC").
+			Limit(1).
+			Scan(ctx, &latestTimestamp)
+
+		var latestTimestampStr *string
+		if err == nil && latestTimestamp != nil {
+			isoString := latestTimestamp.Format(time.RFC3339)
+			latestTimestampStr = &isoString
+		}
+
 		videoMap[video.VideoID] = gin.H{
 			"video_id":         video.VideoID,
 			"youtube_url":      video.YouTubeURL,
@@ -80,6 +96,7 @@ func (v *VideoHandlers) GetAllVideos(c *gin.Context) {
 			"ai_summary":       video.AISummary,
 			"watched_duration": video.WatchedDuration,
 			"count":            count,
+			"latest_timestamp": latestTimestampStr,
 			"created_at":       video.CreatedAt,
 		}
 	}
@@ -269,12 +286,9 @@ func (v *VideoHandlers) CreateOrUpdateVideo(ctx context.Context, userID uuid.UUI
 		return err
 	}
 
-	// Video exists for this user, don't update the title
-	// The video title should be the YouTube video title, not the timestamp title
 	return nil
 }
 
-// VideoExists checks if a video exists for a user
 func (v *VideoHandlers) VideoExists(ctx context.Context, userID uuid.UUID, videoID string) (bool, error) {
 	count, err := v.db.DB.NewSelect().
 		Model((*models.Video)(nil)).
@@ -326,18 +340,139 @@ func (v *VideoHandlers) GetVideoByYouTubeURL(ctx context.Context, userID uuid.UU
 	return &video, nil
 }
 
+func (v *VideoHandlers) UpdateVideoMetadata(ctx context.Context, userID uuid.UUID, videoID string, youtubeURL string, title string) error {
+	_, err := v.db.DB.NewUpdate().
+		Model((*models.Video)(nil)).
+		Set("youtube_url = ?", youtubeURL).
+		Set("title = ?", title).
+		Set("updated_at = NOW()").
+		Where("user_id = ? AND video_id = ? AND deleted_at IS NULL", userID, videoID).
+		Exec(ctx)
+
+	return err
+}
+
+func (v *VideoHandlers) UpdateVideoMetadataHandler(c *gin.Context) {
+	userIDStr, exists := authhandlers.GetUserID(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found", nil)
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	var req struct {
+		VideoID      string  `json:"video_id" binding:"required"`
+		YouTubeURL   string  `json:"youtube_url" binding:"required"`
+		Title        string  `json:"title" binding:"required"`
+		Duration     *int    `json:"duration"`
+		ThumbnailURL *string `json:"thumbnail_url"`
+		ChannelTitle *string `json:"channel_title"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	ctx := context.Background()
+
+	exists, err = v.VideoExists(ctx, userID, req.VideoID)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to check video existence", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	if !exists {
+		video := &models.Video{
+			UserID:     userID,
+			VideoID:    req.VideoID,
+			YouTubeURL: req.YouTubeURL,
+			Title:      req.Title,
+		}
+
+		// Set optional fields if provided
+		if req.Duration != nil {
+			video.Duration = *req.Duration
+		}
+		if req.ThumbnailURL != nil {
+			video.ThumbnailURL = *req.ThumbnailURL
+		}
+		if req.ChannelTitle != nil {
+			video.ChannelTitle = *req.ChannelTitle
+		}
+
+		_, err = v.db.DB.NewInsert().
+			Model(video).
+			Exec(ctx)
+
+		if err != nil {
+			middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to create video", gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		middleware.RespondWithOK(c, gin.H{
+			"message": "Video created successfully",
+			"video":   video,
+		})
+		return
+	}
+
+	updateQuery := v.db.DB.NewUpdate().
+		Model((*models.Video)(nil)).
+		Set("youtube_url = ?", req.YouTubeURL).
+		Set("title = ?", req.Title).
+		Set("updated_at = NOW()").
+		Where("user_id = ? AND video_id = ? AND deleted_at IS NULL", userID, req.VideoID)
+
+	// Add optional fields to update
+	if req.Duration != nil {
+		updateQuery = updateQuery.Set("duration = ?", *req.Duration)
+	}
+	if req.ThumbnailURL != nil {
+		updateQuery = updateQuery.Set("thumbnail_url = ?", *req.ThumbnailURL)
+	}
+	if req.ChannelTitle != nil {
+		updateQuery = updateQuery.Set("channel_title = ?", *req.ChannelTitle)
+	}
+
+	_, updateErr := updateQuery.Exec(ctx)
+	if updateErr != nil {
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to update video metadata", gin.H{
+			"error": updateErr.Error(),
+		})
+		return
+	}
+
+	middleware.RespondWithOK(c, gin.H{
+		"message": "Video metadata updated successfully",
+	})
+}
+
 func (v *VideoHandlers) GetOrCreateVideoByYouTubeURL(ctx context.Context, userID uuid.UUID, youtubeURL string, videoID string, title string) (*models.Video, error) {
 	video, err := v.GetVideoByYouTubeURL(ctx, userID, youtubeURL)
 	if err == nil {
 		if video.Title != title {
-			_, err = v.db.DB.NewUpdate().
+			_, updateErr := v.db.DB.NewUpdate().
 				Model(video).
 				Set("title = ?", title).
 				Set("updated_at = NOW()").
 				Where("id = ?", video.ID).
 				Exec(ctx)
-			if err != nil {
-				return nil, err
+			if updateErr != nil {
+				return nil, updateErr
 			}
 			video.Title = title
 		}
@@ -351,13 +486,113 @@ func (v *VideoHandlers) GetOrCreateVideoByYouTubeURL(ctx context.Context, userID
 		Title:      title,
 	}
 
-	_, err = v.db.DB.NewInsert().
+	_, insertErr := v.db.DB.NewInsert().
 		Model(newVideo).
 		Exec(ctx)
 
-	if err != nil {
-		return nil, err
+	if insertErr != nil {
+		return nil, insertErr
 	}
 
 	return newVideo, nil
+}
+
+func (v *VideoHandlers) UpdateWatchedDurationHandler(c *gin.Context) {
+	userIDStr, exists := authhandlers.GetUserID(c)
+	if !exists {
+		middleware.RespondWithError(c, http.StatusUnauthorized, "NO_USER_ID", "User ID not found", nil)
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	videoID := c.Param("id")
+	if videoID == "" {
+		middleware.RespondWithError(c, http.StatusBadRequest, "MISSING_VIDEO_ID", "Video ID is required", nil)
+		return
+	}
+
+	var req struct {
+		WatchedDuration int `json:"watched_duration" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	ctx := context.Background()
+
+	var currentWatchedDuration int
+	err = v.db.DB.NewSelect().
+		Model((*models.Video)(nil)).
+		Column("watched_duration").
+		Where("user_id = ? AND video_id = ? AND deleted_at IS NULL", userID, videoID).
+		Scan(ctx, &currentWatchedDuration)
+
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			video := &models.Video{
+				UserID:          userID,
+				VideoID:         videoID,
+				WatchedDuration: req.WatchedDuration,
+			}
+
+			_, err = v.db.DB.NewInsert().
+				Model(video).
+				Exec(ctx)
+
+			if err != nil {
+				middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to create video with watched duration", gin.H{
+					"error": err.Error(),
+				})
+				return
+			}
+
+			middleware.RespondWithOK(c, gin.H{
+				"message":          "Video created with watched duration",
+				"watched_duration": req.WatchedDuration,
+			})
+			return
+		}
+
+		middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to get current watched duration", gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	if req.WatchedDuration > currentWatchedDuration {
+		_, err = v.db.DB.NewUpdate().
+			Model((*models.Video)(nil)).
+			Set("watched_duration = ?", req.WatchedDuration).
+			Set("updated_at = NOW()").
+			Where("user_id = ? AND video_id = ? AND deleted_at IS NULL", userID, videoID).
+			Exec(ctx)
+
+		if err != nil {
+			middleware.RespondWithError(c, http.StatusInternalServerError, "DB_ERROR", "Failed to update watched duration", gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		middleware.RespondWithOK(c, gin.H{
+			"message":          "Watched duration updated successfully",
+			"watched_duration": req.WatchedDuration,
+		})
+	} else {
+		middleware.RespondWithOK(c, gin.H{
+			"message":          "Watched duration unchanged (no increase)",
+			"watched_duration": currentWatchedDuration,
+		})
+	}
 }

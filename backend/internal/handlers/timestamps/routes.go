@@ -21,6 +21,9 @@ func SetupTimestampRoutes(router *gin.RouterGroup, handlers *TimestampsHandlers,
 		// Get timestamps by video ID
 		timestampRoutes.GET("/:id", handlers.GetTimestampsByVideoID)
 
+		// Update timestamp
+		timestampRoutes.PUT("/:id", handlers.UpdateTimestamp)
+
 		// Delete timestamp
 		timestampRoutes.DELETE("/:id", handlers.DeleteTimestamp)
 

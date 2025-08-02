@@ -9,17 +9,12 @@ func SetupVideoRoutes(router *gin.RouterGroup, handlers *VideoHandlers, authMidd
 	videoRoutes := router.Group("/ytclipper/videos")
 	{
 		videoRoutes.Use(authMiddleware.RequireAuth())
-
-		// Get all videos with timestamp counts
 		videoRoutes.GET("", handlers.GetAllVideos)
-
-		// Get recent videos
 		videoRoutes.GET("/recent", handlers.GetRecentVideos)
-
-		// Get specific video with timestamps
 		videoRoutes.GET("/:id", handlers.GetVideoByID)
-
-		// Delete video and all its timestamps
 		videoRoutes.DELETE("/:id", handlers.DeleteVideo)
+		videoRoutes.PUT("/metadata", handlers.UpdateVideoMetadataHandler)
+
+		videoRoutes.PUT("/:id/watched-duration", handlers.UpdateWatchedDurationHandler)
 	}
 }
