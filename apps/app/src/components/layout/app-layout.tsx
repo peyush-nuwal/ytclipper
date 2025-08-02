@@ -23,6 +23,9 @@ export const AppLayout = () => {
             <Link to='/videos' className=''>
               My Videos
             </Link>
+            <Link to='/pricing' className=''>
+              Pricing
+            </Link>
             <Link to='/profile' className=''>
               Profile
             </Link>

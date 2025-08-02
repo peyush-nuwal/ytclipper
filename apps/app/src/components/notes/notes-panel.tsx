@@ -1,7 +1,6 @@
 import {
   useCreateTimestampMutation,
   useDeleteTimestampMutation,
-  useGetAllTagsQuery,
   useGetTimestampsQuery,
   useSearchTagsMutation,
   useUpdateTimestampMutation,
@@ -98,9 +97,6 @@ export const NotesPanel = ({
     refetch,
   } = useGetTimestampsQuery(videoId || '');
 
-  const { data: tagsData } = useGetAllTagsQuery({ limit: 10 });
-  const availableTags = tagsData?.data?.tags || [];
-
   const [createTimestamp, { isLoading: isCreating }] =
     useCreateTimestampMutation();
   const [updateTimestamp, { isLoading: isUpdating }] =
@@ -150,7 +146,8 @@ export const NotesPanel = ({
 
   const handleUpdateNote = async (id: string) => {
     try {
-      await updateTimestamp({
+      console.log('Updating note:', id, editingNote);
+      const result = await updateTimestamp({
         id,
         data: {
           title: editingNote.title,
@@ -158,6 +155,7 @@ export const NotesPanel = ({
           tags: editingNote.tags,
         },
       }).unwrap();
+      console.log('Update successful:', result);
       setIsEditingNote(null);
       setEditingNote({ title: '', note: '', tags: [] });
       setIsPreviewMode(false);
@@ -544,7 +542,6 @@ export const NotesPanel = ({
         </div>
       </div>
 
-      {/* Current Note Highlight */}
       {currentNote ? (
         <div className='mx-4 mt-4 flex-shrink-0'>
           <Card className='bg-orange-50 border-orange-200'>
@@ -629,7 +626,6 @@ export const NotesPanel = ({
                   )}
                 >
                   <CardContent className='p-0'>
-                    {/* Note Header */}
                     <div
                       className='p-4 cursor-pointer hover:bg-gray-50 transition-colors rounded-2xl overflow-hidden'
                       onClick={() => toggleNoteExpansion(note.id)}
@@ -755,7 +751,6 @@ export const NotesPanel = ({
         </ScrollArea>
       </div>
 
-      {/* Edit Note Modal */}
       <Dialog
         open={!!isEditingNote}
         onOpenChange={() => {
@@ -774,7 +769,6 @@ export const NotesPanel = ({
           <div className='flex flex-col md:flex-row md:space-x-8 space-y-4 md:space-y-0 w-full'>
             <div className='flex-1 min-w-0 space-y-2'>
               <div className='flex flex-col h-full space-y-4'>
-                {/* Title Input */}
                 <div>
                   <label
                     htmlFor='edit-title'
@@ -861,7 +855,6 @@ export const NotesPanel = ({
             </div>
             <div className='flex flex-col justify-between md:w-1/3 w-full'>
               <div>
-                {/* Tags Section */}
                 <div className='relative'>
                   <label
                     htmlFor='edit-tags'
@@ -957,12 +950,13 @@ export const NotesPanel = ({
                   </div>
                 </div>
               </div>
-              {/* Action Buttons */}
               <div className='flex gap-3 pt-4 border-t border-gray-200'>
                 <Button
-                  onClick={() =>
-                    isEditingNote && handleUpdateNote(isEditingNote)
-                  }
+                  onClick={() => {
+                    if (isEditingNote) {
+                      handleUpdateNote(isEditingNote);
+                    }
+                  }}
                   className='flex-1'
                   disabled={isUpdating || !isEditingNote}
                 >
@@ -994,7 +988,6 @@ export const NotesPanel = ({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog
         open={!!noteToDelete}
         onOpenChange={() => setNoteToDelete(null)}

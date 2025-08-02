@@ -137,18 +137,18 @@ export const LoginPage = () => {
   const passwordsMatch = formData.password === formData.confirmPassword;
 
   return (
-    <div className='min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 relative overflow-hidden'>
+    <div className='min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-orange-50 via-white to-orange-100 relative overflow-hidden'>
       {/* Background decorative elements */}
       <div className='absolute inset-0 overflow-hidden pointer-events-none'>
-        <div className='absolute -top-40 -right-40 w-80 h-80 bg-blue-400/10 rounded-full blur-3xl' />
-        <div className='absolute -bottom-40 -left-40 w-80 h-80 bg-indigo-400/10 rounded-full blur-3xl' />
-        <div className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-400/5 rounded-full blur-3xl' />
+        <div className='absolute -top-40 -right-40 w-80 h-80 bg-orange-400/10 rounded-full blur-3xl' />
+        <div className='absolute -bottom-40 -left-40 w-80 h-80 bg-orange-400/10 rounded-full blur-3xl' />
+        <div className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-orange-400/5 rounded-full blur-3xl' />
       </div>
 
       <Card className='max-w-md w-full shadow-2xl border-0 bg-white/80 backdrop-blur-sm relative z-10'>
         <CardHeader className='space-y-2 pb-6'>
           <div className='flex justify-center mb-4'>
-            <div className='w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center'>
+            <div className='w-12 h-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center'>
               <svg
                 className='w-6 h-6 text-white'
                 fill='currentColor'
@@ -193,7 +193,7 @@ export const LoginPage = () => {
                   value={formData.name}
                   onChange={handleInputChange}
                   required
-                  className='w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white'
+                  className='w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white'
                   placeholder='Enter your full name'
                 />
               </div>
@@ -213,7 +213,7 @@ export const LoginPage = () => {
                 value={formData.email}
                 onChange={handleInputChange}
                 required
-                className='w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white'
+                className='w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white'
                 placeholder='Enter your email'
               />
             </div>
@@ -233,7 +233,7 @@ export const LoginPage = () => {
                   value={formData.password}
                   onChange={handleInputChange}
                   required
-                  className='w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white'
+                  className='w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white'
                   placeholder='Enter your password'
                 />
                 <button
@@ -296,7 +296,7 @@ export const LoginPage = () => {
                         ? 'border-red-300 focus:ring-red-500'
                         : formData.confirmPassword && passwordsMatch
                           ? 'border-green-300 focus:ring-green-500'
-                          : 'border-gray-200 focus:ring-blue-500'
+                          : 'border-gray-200 focus:ring-orange-500'
                     }`}
                     placeholder='Confirm your password'
                   />
@@ -327,13 +327,25 @@ export const LoginPage = () => {
               </div>
             )}
 
+            {isLoginMode ? (
+              <div className='text-right'>
+                <button
+                  type='button'
+                  onClick={() => navigate('/auth/forgot-password')}
+                  className='text-sm text-orange-600 hover:text-orange-800 font-medium transition-colors duration-200 hover:underline'
+                >
+                  Forgot your password?
+                </button>
+              </div>
+            ) : null}
+
             <Button
               type='submit'
               disabled={
                 currentlyLoading ||
                 (!isLoginMode && (!passwordsMatch || passwordStrength < 3))
               }
-              className='w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none'
+              className='w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none'
             >
               {currentlyLoading ? (
                 <div className='flex items-center gap-2'>
@@ -406,7 +418,7 @@ export const LoginPage = () => {
                 });
                 setPasswordStrength(0);
               }}
-              className='text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200 hover:underline'
+              className='text-sm text-orange-600 hover:text-orange-800 font-medium transition-colors duration-200 hover:underline'
             >
               {isLoginMode
                 ? "Don't have an account? Sign up"

@@ -1,0 +1,67 @@
+import type { UniversalResponse } from '@/types';
+import { api } from './api';
+
+export interface MostUsedTag {
+  name: string;
+  count: number;
+}
+
+export interface RecentVideo {
+  video_id: string;
+  title: string;
+  thumbnail_url?: string;
+  duration: number;
+  note_count: number;
+  latest_timestamp: string;
+  watch_progress: number;
+}
+
+export interface RecentActivity {
+  title: string;
+  timestamp: string;
+  duration: number;
+}
+
+export interface RecentNote {
+  id: string;
+  title: string;
+  video_title: string;
+  created_at: string;
+  tags: string[];
+}
+
+export const injectedDashboardApi = api.injectEndpoints({
+  endpoints: (builder) => ({
+    getMostUsedTags: builder.query<
+      UniversalResponse<{ tags: MostUsedTag[] }>,
+      void
+    >({
+      query: () => '/dashboard/most-used-tags',
+    }),
+    getRecentVideos: builder.query<
+      UniversalResponse<{ videos: RecentVideo[] }>,
+      void
+    >({
+      query: () => '/dashboard/recent-videos',
+    }),
+    getRecentActivity: builder.query<
+      UniversalResponse<{ activities: RecentActivity[] }>,
+      void
+    >({
+      query: () => '/dashboard/recent-activity',
+    }),
+    getRecentNotes: builder.query<
+      UniversalResponse<{ notes: RecentNote[] }>,
+      void
+    >({
+      query: () => '/dashboard/recent-notes',
+    }),
+  }),
+});
+
+export const {
+  useGetMostUsedTagsQuery,
+  useGetRecentVideosQuery,
+  useGetRecentActivityQuery,
+  useGetRecentNotesQuery,
+} = injectedDashboardApi;

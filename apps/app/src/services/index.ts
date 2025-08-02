@@ -1,3 +1,11 @@
+export type {
+  DashboardData,
+  DashboardStats,
+  MostUsedTag,
+  RecentActivity,
+  RecentNote,
+  RecentVideo,
+} from './dashboard';
 export { extensionMessaging } from './extension-messaging';
 export type {
   ExtensionAuthMessage,
@@ -6,8 +14,8 @@ export type {
 } from './extension-messaging';
 export {
   getExtensionStatus,
-  syncAuthenticatedUser,
   syncAuthState,
+  syncAuthenticatedUser,
   syncLogout,
 } from './extension-sync';
 export type { ExtensionSyncResult } from './extension-sync';
