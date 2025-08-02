@@ -3,6 +3,7 @@ import {
   useDeleteTimestampMutation,
   useGetAllTagsQuery,
   useGetTimestampsQuery,
+  useSearchTagsMutation,
   useUpdateTimestampMutation,
 } from '@/services/timestamps';
 import { useAppSelector } from '@/store/hooks';
@@ -23,6 +24,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  cn,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -32,8 +34,6 @@ import {
   ScrollArea,
 } from '@ytclipper/ui';
 import {
-  ChevronDown,
-  ChevronRight,
   Clock,
   Download,
   Edit,
@@ -45,9 +45,11 @@ import {
   Plus,
   Save,
   Tag,
+  Trash2,
   X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useDebounce } from '../../hooks/use-debounce';
 
 interface Timestamp {
   id: string;
@@ -97,7 +99,7 @@ export const NotesPanel = ({
     refetch,
   } = useGetTimestampsQuery(videoId || '');
 
-  const { data: tagsData } = useGetAllTagsQuery({ limit: 100 });
+  const { data: tagsData } = useGetAllTagsQuery({ limit: 10 });
   const availableTags = tagsData?.data?.tags || [];
 
   const [createTimestamp, { isLoading: isCreating }] =
@@ -107,6 +109,14 @@ export const NotesPanel = ({
   const [deleteTimestamp, { isLoading: isDeleting }] =
     useDeleteTimestampMutation();
 
+  const [searchTags, { data: searchedTags }] = useSearchTagsMutation();
+  const debouncedTagInput = useDebounce(tagInput, 300);
+
+  useEffect(() => {
+    if (debouncedTagInput.trim().length > 0) {
+      searchTags({ query: debouncedTagInput });
+    }
+  }, [debouncedTagInput, searchTags]);
   const notes = useMemo(
     () => timestampsData?.data.timestamps || [],
     [timestampsData?.data.timestamps],
@@ -198,12 +208,7 @@ export const NotesPanel = ({
     return notes.find((note) => Math.abs(note.timestamp - currentTime) < 5);
   };
 
-  const filteredTags = availableTags.filter(
-    (tag) =>
-      tag.name.toLowerCase().includes(tagInput.toLowerCase()) &&
-      !newNote.tags.includes(tag.name) &&
-      !editingNote.tags.includes(tag.name),
-  );
+  const filteredTags = searchedTags?.data?.tags || [];
 
   const exportToMarkdown = () => {
     const formatMarkdownTime = (seconds: number) => {
@@ -301,7 +306,7 @@ export const NotesPanel = ({
   };
 
   return (
-    <div className='w-80 h-full bg-white border-l border-gray-200 flex flex-col min-w-0'>
+    <div className='h-full bg-white border-l border-gray-200 flex flex-col min-w-0'>
       {/* Header */}
       <div className='p-4 border-b border-gray-200 bg-white flex-shrink-0'>
         <div className='flex items-center justify-between'>
@@ -324,6 +329,7 @@ export const NotesPanel = ({
                 className='px-2'
               >
                 <Download className='h-4 w-4' />
+                Export Notes
               </Button>
             )}
             <Dialog open={isAddingNote} onOpenChange={handleCloseAddNote}>
@@ -335,6 +341,7 @@ export const NotesPanel = ({
                   className='px-2'
                 >
                   <Plus className='h-4 w-4' />
+                  Add Note
                 </Button>
               </DialogTrigger>
               <DialogContent className='max-w-4xl max-h-[90vh] overflow-y-auto'>
@@ -444,11 +451,16 @@ export const NotesPanel = ({
                           <button
                             key={tag.id}
                             type='button'
-                            onClick={() =>
-                              addTag(newNote.tags, (tags) =>
-                                setNewNote((prev) => ({ ...prev, tags })),
-                              )
-                            }
+                            onClick={() => {
+                              if (!newNote.tags.includes(tag.name)) {
+                                setNewNote((prev) => ({
+                                  ...prev,
+                                  tags: [...prev.tags, tag.name],
+                                }));
+                              }
+                              setTagInput('');
+                              setShowTagSuggestions(false);
+                            }}
                             className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0'
                           >
                             <Tag className='h-4 w-4 text-gray-400' />
@@ -467,7 +479,7 @@ export const NotesPanel = ({
                                 setNewNote((prev) => ({ ...prev, tags })),
                               )
                             }
-                            className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-blue-600 border-b border-gray-100 last:border-b-0'
+                            className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-orange-600 border-b border-gray-100 last:border-b-0'
                           >
                             <Plus className='h-4 w-4' />
                             <span>Create &ldquo;{tagInput}&rdquo;</span>
@@ -529,15 +541,15 @@ export const NotesPanel = ({
       {/* Current Note Highlight */}
       {currentNote ? (
         <div className='mx-4 mt-4 flex-shrink-0'>
-          <Card className='bg-blue-50 border-blue-200'>
+          <Card className='bg-orange-50 border-orange-200'>
             <CardHeader className='pb-3'>
               <div className='flex items-center justify-between'>
-                <CardTitle className='text-sm font-semibold text-blue-900'>
+                <CardTitle className='text-sm font-semibold text-orange-900'>
                   🎯 Current Note
                 </CardTitle>
                 <Badge
                   variant='outline'
-                  className='text-blue-700 border-blue-300 bg-blue-100'
+                  className='text-orange-700 border-orange-300 bg-orange-100'
                 >
                   <Clock className='h-3 w-3 mr-1' />
                   {formatTime(currentNote.timestamp)}
@@ -549,7 +561,12 @@ export const NotesPanel = ({
                 {currentNote.title}
               </h3>
               <div className='text-sm text-gray-700 mb-3'>
-                <MDEditor.Markdown source={currentNote.note} />
+                <MarkdownPreview
+                  wrapperElement={{
+                    'data-color-mode': 'light',
+                  }}
+                  source={currentNote.note}
+                />
               </div>
               <div className='flex flex-wrap gap-1'>
                 {currentNote.tags.map((tag) => (
@@ -563,184 +580,172 @@ export const NotesPanel = ({
         </div>
       ) : null}
 
-      {/* Notes List */}
-      <div className='flex-1 overflow-hidden'>
-        <ScrollArea className='h-full p-4'>
-          <div className='space-y-3'>
-            {timestampsLoading ? (
-              <div className='text-center py-8'>
-                <div className='inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-4'>
-                  <Clock className='h-6 w-6 text-gray-600 animate-pulse' />
-                </div>
-                <p className='text-gray-600 font-medium'>
-                  Loading your notes...
-                </p>
-                <p className='text-sm text-gray-500 mt-1'>
-                  This won&apos;t take long
-                </p>
+      <div className='flex-1 min-h-0'>
+        <ScrollArea className='h-[calc(100vh-250px)] relative p-4'>
+          {timestampsLoading ? (
+            <div className='text-center py-8'>
+              <div className='inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-4'>
+                <Clock className='h-6 w-6 text-gray-600 animate-pulse' />
               </div>
-            ) : null}
+              <p className='text-gray-600 font-medium'>Loading your notes...</p>
+              <p className='text-sm text-gray-500 mt-1'>
+                This won&apos;t take long
+              </p>
+            </div>
+          ) : null}
 
-            {notes.length === 0 && !timestampsLoading ? (
-              <div className='text-center py-8'>
-                <div className='inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-4'>
-                  <FileText className='h-6 w-6 text-gray-400' />
-                </div>
-                <p className='text-gray-600 font-medium'>No notes yet</p>
-                <p className='text-sm text-gray-500 mt-1'>
-                  Start taking notes to see them here
-                </p>
+          {notes.length === 0 && !timestampsLoading ? (
+            <div className='text-center py-8'>
+              <div className='inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-4'>
+                <FileText className='h-6 w-6 text-gray-400' />
               </div>
-            ) : null}
+              <p className='text-gray-600 font-medium'>No notes yet</p>
+              <p className='text-sm text-gray-500 mt-1'>
+                Start taking notes to see them here
+              </p>
+            </div>
+          ) : null}
 
-            {notes.length > 0 &&
-              notes.map((note) => {
-                const isExpanded = expandedNoteIds.includes(note.id);
-                const isCurrent = note.id === currentNote?.id;
+          {notes.length > 0 &&
+            notes.map((note) => {
+              const isExpanded = expandedNoteIds.includes(note.id);
+              const isCurrent = note.id === currentNote?.id;
 
-                return (
-                  <Card
-                    key={note.id}
-                    className={`transition-all duration-300 hover:shadow-md border ${
-                      isCurrent
-                        ? 'ring-2 ring-blue-500 border-blue-200 bg-blue-50'
-                        : 'border-gray-200 bg-white hover:border-gray-300'
-                    }`}
-                  >
-                    <CardContent className='p-0'>
-                      {/* Note Header */}
-                      <div
-                        className='p-4 cursor-pointer hover:bg-gray-50 transition-colors'
-                        onClick={() => toggleNoteExpansion(note.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            toggleNoteExpansion(note.id);
-                          }
-                        }}
-                        role='button'
-                        tabIndex={0}
-                      >
-                        <div className='flex items-start justify-between'>
-                          <div className='flex-1 min-w-0'>
-                            <div className='flex items-center gap-3 mb-2'>
-                              <h3 className='font-semibold text-gray-900 truncate'>
-                                {note.title}
-                              </h3>
-                              {isCurrent ? (
-                                <Badge
-                                  variant='secondary'
-                                  className='text-xs bg-blue-100 text-blue-800 border-blue-200 flex-shrink-0'
-                                >
-                                  Current
-                                </Badge>
-                              ) : null}
-                            </div>
-                            <div className='flex items-center gap-2 text-sm text-gray-500'>
-                              <Clock className='h-4 w-4 flex-shrink-0' />
-                              <span className='font-mono'>
-                                {formatTime(note.timestamp)}
-                              </span>
-                              {note.tags.length > 0 && (
-                                <>
-                                  <span>•</span>
-                                  <span>{note.tags.length} tags</span>
-                                </>
-                              )}
-                            </div>
+              return (
+                <Card
+                  key={note.id}
+                  className={cn(
+                    `transition-all p-0 duration-300 hover:shadow-md border`,
+                    isCurrent
+                      ? 'ring-2 ring-orange-500 border-orange-200 bg-orange-50'
+                      : 'border-gray-200 bg-white hover:border-gray-300',
+                    'mt-4 max-w-full',
+                  )}
+                >
+                  <CardContent className='p-0'>
+                    {/* Note Header */}
+                    <div
+                      className='p-4 cursor-pointer hover:bg-gray-50 transition-colors rounded-2xl overflow-hidden'
+                      onClick={() => toggleNoteExpansion(note.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleNoteExpansion(note.id);
+                        }
+                      }}
+                      role='button'
+                      tabIndex={0}
+                    >
+                      <div className='flex items-start justify-between'>
+                        <div className='flex-1 pr-2'>
+                          <div className='flex items-center gap-3 mb-2'>
+                            <h3 className='font-semibold text-gray-900 truncate flex-1 min-w-0'>
+                              {note.title.length > 40
+                                ? `${note.title.substring(0, 40)}...`
+                                : note.title}
+                            </h3>
+                            {isCurrent ? (
+                              <Badge
+                                variant='secondary'
+                                className='text-xs bg-orange-100 text-orange-800 border-orange-200 flex-shrink-0'
+                              >
+                                Current
+                              </Badge>
+                            ) : null}
                           </div>
-                          <div className='flex items-center gap-1 ml-4 flex-shrink-0'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-8 w-8 p-0 hover:bg-gray-200'
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startEditing(note);
-                              }}
-                              disabled={isUpdating}
-                            >
-                              {isUpdating ? (
-                                <Loader2 className='h-4 w-4 animate-spin' />
-                              ) : (
-                                <Edit className='h-4 w-4' />
-                              )}
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-8 w-8 p-0 hover:bg-red-100 text-red-600'
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setNoteToDelete(note.id);
-                              }}
-                              disabled={isDeleting}
-                            >
-                              {isDeleting ? (
-                                <Loader2 className='h-4 w-4 animate-spin' />
-                              ) : (
-                                <X className='h-4 w-4' />
-                              )}
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-8 w-8 p-0 hover:bg-gray-200'
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleNoteExpansion(note.id);
-                              }}
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className='h-4 w-4' />
-                              ) : (
-                                <ChevronRight className='h-4 w-4' />
-                              )}
-                            </Button>
+                          <div className='flex items-center gap-2 text-sm text-gray-500 flex-wrap'>
+                            <Clock className='h-4 w-4 flex-shrink-0' />
+                            <span className='font-mono'>
+                              {formatTime(note.timestamp)}
+                            </span>
+                            {note.tags.length > 0 && (
+                              <>
+                                <span>•</span>
+                                <span>{note.tags.length} tags</span>
+                              </>
+                            )}
                           </div>
                         </div>
+                        <div className='flex items-center gap-1 ml-4 flex-shrink-0'>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-8 w-8 p-0 hover:bg-gray-200'
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditing(note);
+                            }}
+                            disabled={isUpdating}
+                          >
+                            {isUpdating ? (
+                              <Loader2 className='h-4 w-4 animate-spin' />
+                            ) : (
+                              <Edit className='h-4 w-4' />
+                            )}
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-8 w-8 p-0 hover:bg-red-100 text-red-600'
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setNoteToDelete(note.id);
+                            }}
+                            disabled={isDeleting}
+                          >
+                            {isDeleting ? (
+                              <Loader2 className='h-4 w-4 animate-spin' />
+                            ) : (
+                              <Trash2 className='h-4 w-4' />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
 
-                        {/* Tags */}
-                        {note.tags.length > 0 && (
-                          <div className='flex flex-wrap gap-1 mt-3'>
-                            {note.tags.map((tag) => (
-                              <Badge
-                                key={tag}
-                                variant='secondary'
-                                className='text-xs'
-                              >
-                                {tag}
-                              </Badge>
-                            ))}
+                      {note.tags.length > 0 && (
+                        <div className='flex flex-wrap gap-1 mt-3 overflow-hidden'>
+                          {note.tags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant='secondary'
+                              className='text-xs truncate max-w-[120px]'
+                              title={tag}
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                        isExpanded
+                          ? 'max-h-[1000px] opacity-100'
+                          : 'max-h-0 opacity-0'
+                      }`}
+                    >
+                      <div className='border-t border-gray-100 p-4 bg-gray-50 overflow-hidden'>
+                        {note.note ? (
+                          <div className='prose prose-sm max-w-none overflow-hidden break-words'>
+                            <MarkdownPreview
+                              source={note.note}
+                              wrapperElement={{
+                                'data-color-mode': 'light',
+                              }}
+                            />
                           </div>
+                        ) : (
+                          <p className='text-gray-500 italic'>
+                            No content added to this note yet.
+                          </p>
                         )}
                       </div>
-
-                      {/* Expandable Content */}
-                      <div
-                        className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                          isExpanded
-                            ? 'max-h-[1000px] opacity-100'
-                            : 'max-h-0 opacity-0'
-                        }`}
-                      >
-                        <div className='border-t border-gray-100 p-4 bg-gray-50'>
-                          {note.note ? (
-                            <div className='prose prose-sm max-w-none'>
-                              <MDEditor.Markdown source={note.note} />
-                            </div>
-                          ) : (
-                            <p className='text-gray-500 italic'>
-                              No content added to this note yet.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-          </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
         </ScrollArea>
       </div>
 
@@ -846,7 +851,7 @@ export const NotesPanel = ({
                           setEditingNote((prev) => ({ ...prev, tags })),
                         )
                       }
-                      className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-blue-600 border-b border-gray-100 last:border-b-0'
+                      className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-orange-600 border-b border-gray-100 last:border-b-0'
                     >
                       <Plus className='h-4 w-4' />
                       <span>Create &ldquo;{tagInput}&rdquo;</span>
@@ -878,7 +883,6 @@ export const NotesPanel = ({
 
             <div className='border-t border-gray-200 my-4' />
 
-            {/* Markdown Editor/Preview Toggle */}
             <div className='flex items-center justify-between'>
               <h3 className='text-lg font-semibold text-gray-900'>
                 Note Content
@@ -912,7 +916,6 @@ export const NotesPanel = ({
               </div>
             </div>
 
-            {/* Markdown Editor/Preview */}
             <div className='flex-1 min-h-0 border border-gray-300 rounded-lg overflow-hidden'>
               {isPreviewMode ? (
                 <ScrollArea className='h-full'>

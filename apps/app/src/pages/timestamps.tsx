@@ -117,8 +117,8 @@ export const TimestampsPage = () => {
   }
 
   return (
-    <div className='h-[calc(100vh-50px)] flex flex-col'>
-      <main className='container mx-auto'>
+    <div className='flex flex-col'>
+      <main className='mx-auto max-w-9xl px-4 sm:px-6 lg:px-8 flex-1'>
         <ResizablePanelGroup direction='horizontal' className='min-h-full'>
           <ResizablePanel defaultSize={60} minSize={40}>
             <div className='h-full pr-2'>
