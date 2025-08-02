@@ -5,8 +5,8 @@ import { Link, Outlet } from 'react-router';
 export const AppLayout = () => {
   return (
     <div className='min-h-screen flex flex-col bg-gray-50'>
-      <header className='bg-white shadow-sm sticky top-0 z-50'>
-        <div className='max-w-7xl mx-auto px-4 py-3 flex justify-between items-center'>
+      <header className='bg-white px-8 shadow-sm sticky top-0 z-50'>
+        <div className='max-w-full mx-auto px-8 py-3 flex justify-between items-center'>
           <Link
             to='/dashboard'
             className='text-xl font-bold text-orange-500 hover:text-orange-600'
@@ -31,7 +31,7 @@ export const AppLayout = () => {
         </div>
       </header>
 
-      <main className='flex-1 p-4 bg-background'>
+      <main className='flex-1 py-4 bg-background'>
         <Outlet />
       </main>
     </div>
