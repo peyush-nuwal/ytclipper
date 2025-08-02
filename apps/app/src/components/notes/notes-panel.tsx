@@ -29,7 +29,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   Input,
   ScrollArea,
 } from '@ytclipper/ui';
@@ -332,18 +331,16 @@ export const NotesPanel = ({
                 Export Notes
               </Button>
             )}
+            <Button
+              variant='default'
+              size='sm'
+              onClick={handleOpenAddNote}
+              className='px-2'
+            >
+              <Plus className='h-4 w-4' />
+              Add Note
+            </Button>
             <Dialog open={isAddingNote} onOpenChange={handleCloseAddNote}>
-              <DialogTrigger asChild>
-                <Button
-                  variant='default'
-                  size='sm'
-                  onClick={handleOpenAddNote}
-                  className='px-2'
-                >
-                  <Plus className='h-4 w-4' />
-                  Add Note
-                </Button>
-              </DialogTrigger>
               <DialogContent className='max-w-4xl max-h-[90vh] overflow-y-auto'>
                 <DialogHeader>
                   <DialogTitle>Add New Note</DialogTitle>

@@ -13,7 +13,7 @@ export const AppLayout = () => {
           >
             YTClipper
           </Link>
-          <nav className='flex gap-4'>
+          <nav className='flex gap-4 items-center'>
             <Link to='/dashboard'>
               <Button variant='outline' size='sm' className='hidden sm:flex'>
                 <BarChart3 className='h-4 w-4 mr-2' />
