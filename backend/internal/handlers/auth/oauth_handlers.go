@@ -148,7 +148,7 @@ func (h *OAuthHandlers) CallbackHandler() gin.HandlerFunc {
 			user = models.User{
 				Email:         googleUser.Email,
 				Name:          googleUser.Name,
-				GoogleID:      googleUser.ID,
+				GoogleID:      &googleUser.ID,
 				EmailVerified: googleUser.VerifiedEmail,
 				CreatedAt:     time.Now().UTC(),
 				UpdatedAt:     time.Now().UTC(),
@@ -160,8 +160,9 @@ func (h *OAuthHandlers) CallbackHandler() gin.HandlerFunc {
 				return
 			}
 		} else {
-			if user.GoogleID == "" {
-				user.GoogleID = googleUser.ID
+			if user.GoogleID == nil || *user.GoogleID == "" {
+				googleID := googleUser.ID
+				user.GoogleID = &googleID
 				user.UpdatedAt = time.Now().UTC()
 				if err := h.db.Update(ctx, &user); err != nil {
 					log.Error().Err(err).Msg("Failed to update user with Google ID")
