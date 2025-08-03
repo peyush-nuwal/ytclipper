@@ -52,13 +52,10 @@ export const LoginPage = () => {
         email: formData.email,
         password: formData.password,
       });
-      console.log('Login response:', response);
-
+      console.log('Login response:', response?.data);
       if (response?.data?.success) {
         console.log('Login successful, redirecting to:', from);
-        console.log('About to navigate to:', from);
         navigate(from, { replace: true });
-        console.log('Navigation called');
       }
     } catch (error) {
       console.error('Error logging in:', error);
