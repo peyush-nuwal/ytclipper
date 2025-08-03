@@ -83,7 +83,6 @@ export default [
 
       // REACT COMPONENT RULES
       'react/destructuring-assignment': ['error', 'always'],
-      'react/hook-use-state': 'error',
       'react/jsx-filename-extension': [
         'error',
         { extensions: ['.tsx', '.jsx'] },

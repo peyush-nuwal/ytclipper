@@ -5,19 +5,13 @@ import { useGetCurrentUserQuery } from '../services/auth';
 const UserProfile = () => {
   const { data, isLoading, isError } = useGetCurrentUserQuery();
   // TODO: Remove this once we have a proper extension statuso
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [extensionStatus, setExtensionStatus] = useState<{
+  const [extensionStatus] = useState<{
     available: boolean;
     extensionId: string;
   } | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [syncResult, setSyncResult] = useState<'success' | 'error' | null>(
-    null,
-  );
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime] = useState<Date | null>(null);
+  const [syncResult] = useState<'success' | 'error' | null>(null);
+  const [isSyncing] = useState(false);
 
   // Check extension status and sync auth state
   // useEffect(() => {
