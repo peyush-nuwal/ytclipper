@@ -1,6 +1,5 @@
 import {
   loginFailure,
-  loginStart,
   loginSuccess,
   logout as logoutAction,
 } from '@/store/slices/authSlice';
@@ -55,14 +54,14 @@ export const injectedAuthApi = api.injectEndpoints({
         body,
       }),
       async onQueryStarted(_, { dispatch, queryFulfilled }) {
-        dispatch(loginStart());
         try {
-          const { data } = await queryFulfilled;
-          dispatch(loginSuccess({ user: data.data }));
+          const result = await queryFulfilled;
+          if (result.data.success) {
+            dispatch(loginSuccess({ user: result.data.data }));
+          }
         } catch (error) {
           const errorMessage =
-            (error as { error?: { data?: { message?: string } } })?.error?.data
-              ?.message || 'Login failed';
+            error instanceof Error ? error.message : 'Login failed';
           dispatch(loginFailure(errorMessage));
         }
       },
