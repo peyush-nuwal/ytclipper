@@ -53,9 +53,12 @@ export const LoginPage = () => {
         password: formData.password,
       });
       console.log('Login response:', response);
+
       if (response?.data?.success) {
         console.log('Login successful, redirecting to:', from);
+        console.log('About to navigate to:', from);
         navigate(from, { replace: true });
+        console.log('Navigation called');
       }
     } catch (error) {
       console.error('Error logging in:', error);
@@ -166,7 +169,7 @@ export const LoginPage = () => {
 
           <Button
             type='submit'
-            disabled={currentlyLoading}
+            disabled={currentlyLoading || !formData.email || !formData.password}
             className='w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-2.5 rounded-lg font-semibold transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none'
           >
             {currentlyLoading ? (
