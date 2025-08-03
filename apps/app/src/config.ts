@@ -5,7 +5,7 @@ export const ENV =
 
 const config = {
   development: {
-    apiUrl: 'api-staging.ytclipper.com',
+    apiUrl: 'http://localhost:8080',
     // apiUrl: 'https://api-staging.ytclipper.com',
     googleClientId:
       '738014780988-agqnsme9h75nl8fppt4lt64thkt903bl.apps.googleusercontent.com',
