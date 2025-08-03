@@ -59,7 +59,18 @@ func (h *OAuthHandlers) CallbackHandler() gin.HandlerFunc {
 		log.Info().Str("redirect_uri", h.googleConfig.RedirectURL).Msg("Using redirect URI for token exchange")
 
 		log.Info().Msg("Testing DNS resolution for oauth2.googleapis.com")
-		_, err := net.LookupHost("oauth2.googleapis.com")
+
+		// Test basic connectivity first
+		log.Info().Msg("Testing basic internet connectivity")
+		_, err := net.DialTimeout("tcp", "8.8.8.8:53", 5*time.Second)
+		if err != nil {
+			log.Error().Err(err).Msg("Cannot reach Google DNS server")
+		} else {
+			log.Info().Msg("Can reach Google DNS server")
+		}
+
+		// Test DNS resolution
+		_, err = net.LookupHost("oauth2.googleapis.com")
 		if err != nil {
 			log.Error().Err(err).Msg("DNS resolution failed for oauth2.googleapis.com")
 		} else {
