@@ -52,9 +52,7 @@ export const LoginPage = () => {
         email: formData.email,
         password: formData.password,
       });
-      console.log('Login response:', response?.data);
       if (response?.data?.success) {
-        console.log('Login successful, redirecting to:', from);
         navigate(from, { replace: true });
       }
     } catch (error) {
