@@ -29,8 +29,8 @@ export function DashboardPage() {
 
   // Extract available tags from notes for the RecentNotes component
   const allTags = new Set<string>();
-  if (notesData?.notes) {
-    notesData.notes.forEach((note) => {
+  if (notesData?.data?.notes) {
+    notesData.data.notes.forEach((note) => {
       note.tags.forEach((tag) => allTags.add(tag));
     });
   }
@@ -67,12 +67,12 @@ export function DashboardPage() {
             {tagsLoading ? (
               <MostUsedTagsLoader />
             ) : (
-              <MostUsedTags tags={tagsData?.tags || []} />
+              <MostUsedTags tags={tagsData?.data?.tags || []} />
             )}
             {videosLoading ? (
               <RecentVideosLoader />
             ) : (
-              <RecentVideos videos={videosData?.videos || []} />
+              <RecentVideos videos={videosData?.data?.videos || []} />
             )}
           </div>
 
@@ -80,13 +80,15 @@ export function DashboardPage() {
             {activityLoading ? (
               <RecentActivityLoader />
             ) : (
-              <RecentActivityList activities={activityData?.activities || []} />
+              <RecentActivityList
+                activities={activityData?.data?.activities || []}
+              />
             )}
             {notesLoading ? (
               <RecentNotesLoader />
             ) : (
               <RecentNotes
-                notes={notesData?.notes || []}
+                notes={notesData?.data?.notes || []}
                 availableTags={availableTags}
               />
             )}

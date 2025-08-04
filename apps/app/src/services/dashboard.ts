@@ -45,16 +45,28 @@ export const injectedDashboardApi = api.injectEndpoints({
     >({
       query: () => '/dashboard/stats',
     }),
-    getMostUsedTags: builder.query<{ tags: MostUsedTag[] }, void>({
+    getMostUsedTags: builder.query<
+      UniversalResponse<{ tags: MostUsedTag[] }>,
+      void
+    >({
       query: () => '/dashboard/most-used-tags',
     }),
-    getRecentVideos: builder.query<{ videos: RecentVideo[] }, void>({
+    getRecentVideos: builder.query<
+      UniversalResponse<{ videos: RecentVideo[] }>,
+      void
+    >({
       query: () => '/dashboard/recent-videos',
     }),
-    getRecentActivity: builder.query<{ activities: RecentActivity[] }, void>({
+    getRecentActivity: builder.query<
+      UniversalResponse<{ activities: RecentActivity[] }>,
+      void
+    >({
       query: () => '/dashboard/recent-activity',
     }),
-    getRecentNotes: builder.query<{ notes: RecentNote[] }, void>({
+    getRecentNotes: builder.query<
+      UniversalResponse<{ notes: RecentNote[] }>,
+      void
+    >({
       query: () => '/dashboard/recent-notes',
     }),
   }),
