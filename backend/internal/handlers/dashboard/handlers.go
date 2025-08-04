@@ -12,6 +12,7 @@ import (
 	authhandlers "github.com/shubhamku044/ytclipper/internal/handlers/auth"
 	"github.com/shubhamku044/ytclipper/internal/middleware"
 	"github.com/shubhamku044/ytclipper/internal/models"
+	"github.com/uptrace/bun"
 )
 
 type DashboardHandlers struct {
@@ -180,11 +181,11 @@ func (d *DashboardHandlers) getMostUsedTags(ctx context.Context, userID uuid.UUI
 	var tagCounts []TagCount
 	err := d.db.DB.NewSelect().
 		Model((*models.Tag)(nil)).
-		ColumnExpr("tags.name, COUNT(*) as count").
-		Join("JOIN timestamp_tags tt ON tags.id = tt.tag_id").
+		ColumnExpr("tag.name, COUNT(*) as count").
+		Join("JOIN timestamp_tags tt ON tag.id = tt.tag_id").
 		Join("JOIN timestamps ts ON tt.timestamp_id = ts.id").
-		Where("ts.user_id = ? AND ts.deleted_at IS NULL AND tags.deleted_at IS NULL", userID).
-		Group("tags.id, tags.name").
+		Where("ts.user_id = ? AND ts.deleted_at IS NULL AND tag.deleted_at IS NULL", userID).
+		Group("tag.id", "tag.name").
 		Order("count DESC").
 		Limit(10).
 		Scan(ctx, &tagCounts)
@@ -199,7 +200,6 @@ func (d *DashboardHandlers) getMostUsedTags(ctx context.Context, userID uuid.UUI
 			"count": tc.Count,
 		}
 	}
-
 	return tags, nil
 }
 
@@ -218,12 +218,13 @@ func (d *DashboardHandlers) getRecentVideos(ctx context.Context, userID uuid.UUI
 	err := d.db.DB.NewSelect().
 		Model((*models.Video)(nil)).
 		Column("v.video_id", "v.title", "v.thumbnail_url", "v.duration", "v.watched_duration").
-		Column("COUNT(ts.id) as note_count").
-		Column("MAX(ts.created_at) as latest_timestamp").
+		ColumnExpr("COUNT(ts.id) AS note_count").
+		ColumnExpr("MAX(ts.created_at) AS latest_timestamp").
 		Join("LEFT JOIN timestamps ts ON v.video_id = ts.video_id AND ts.user_id = ? AND ts.deleted_at IS NULL", userID).
 		Where("v.user_id = ? AND v.deleted_at IS NULL", userID).
-		Group("v.id, v.video_id, v.title, v.thumbnail_url, v.duration, v.watched_duration").
-		Order("latest_timestamp DESC NULLS LAST, v.created_at DESC").
+		Group("v.id", "v.video_id", "v.title", "v.thumbnail_url", "v.duration", "v.watched_duration").
+		OrderExpr("latest_timestamp DESC NULLS LAST").
+		OrderExpr("v.created_at DESC").
 		Limit(5).
 		Scan(ctx, &videoData)
 	if err != nil {
@@ -296,32 +297,53 @@ func (d *DashboardHandlers) getRecentNotes(ctx context.Context, userID uuid.UUID
 
 	var noteData []NoteData
 	err := d.db.DB.NewSelect().
-		Model((*models.Timestamp)(nil)).
+		Model((*models.Timestamp)(nil)).TableExpr("timestamps").
 		Column("timestamps.id", "timestamps.title", "timestamps.created_at").
-		Column("v.title as video_title").
+		ColumnExpr("v.title AS video_title").
 		Join("LEFT JOIN videos v ON timestamps.video_id = v.video_id AND v.user_id = timestamps.user_id AND v.deleted_at IS NULL").
 		Where("timestamps.user_id = ? AND timestamps.deleted_at IS NULL", userID).
-		Order("timestamps.created_at DESC").
+		OrderExpr("timestamps.created_at DESC").
 		Limit(10).
 		Scan(ctx, &noteData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query recent notes: %w", err)
 	}
 
+	// Step 1: Map note IDs to their index in the slice
+	noteIndexByID := make(map[string]int)
+	noteIDList := make([]string, len(noteData))
+	for i, nd := range noteData {
+		noteIndexByID[nd.ID] = i
+		noteIDList[i] = nd.ID
+	}
+
+	// Step 2: Query all tags in one go
+	type NoteTag struct {
+		TimestampID string `bun:"timestamp_id"`
+		Name        string `bun:"name"`
+	}
+	var allTags []NoteTag
+
+	err = d.db.DB.NewSelect().
+		Model((*models.Tag)(nil)).
+		Column("tt.timestamp_id", "tags.name").
+		TableExpr("tags").
+		Join("JOIN timestamp_tags tt ON tags.id = tt.tag_id").
+		Where("tt.timestamp_id IN (?)", bun.In(noteIDList)).
+		Scan(ctx, &allTags)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch tags: %w", err)
+	}
+
+	// Step 3: Group tags by note ID
+	tagsByNoteID := make(map[string][]string)
+	for _, tag := range allTags {
+		tagsByNoteID[tag.TimestampID] = append(tagsByNoteID[tag.TimestampID], tag.Name)
+	}
+
+	// Step 4: Build response
 	notes := make([]gin.H, len(noteData))
 	for i, nd := range noteData {
-		var tags []string
-		err := d.db.DB.NewSelect().
-			Model((*models.Tag)(nil)).
-			Column("tags.name").
-			Join("JOIN timestamp_tags tt ON tags.id = tt.tag_id").
-			Where("tt.timestamp_id = ?", nd.ID).
-			Scan(ctx, &tags)
-		if err != nil {
-			// Log the error but don't fail the entire request
-			tags = []string{}
-		}
-
 		videoTitle := ""
 		if nd.VideoTitle != nil {
 			videoTitle = *nd.VideoTitle
@@ -332,7 +354,7 @@ func (d *DashboardHandlers) getRecentNotes(ctx context.Context, userID uuid.UUID
 			"title":       nd.Title,
 			"video_title": videoTitle,
 			"created_at":  nd.CreatedAt.Format(time.RFC3339),
-			"tags":        tags,
+			"tags":        tagsByNoteID[nd.ID], // defaults to nil if no tags
 		}
 	}
 
