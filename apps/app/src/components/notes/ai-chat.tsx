@@ -11,10 +11,9 @@ import {
   CardHeader,
   CardTitle,
   Input,
-  ScrollArea,
 } from '@ytclipper/ui';
 import { Bot, Check, Copy, Loader2, Send, Sparkles, User } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface Message {
   id: string;
@@ -44,6 +43,8 @@ export const AIChat = ({ videoId, currentTimestamp }: AIChatProps) => {
   const [copied, setCopied] = useState(false);
   const timeStampsSliceData = useAppSelector((state) => state.timestamps);
   const videoTitle = timeStampsSliceData.videoTitle;
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [answerQuestion, { isLoading: isAnswering }] =
     useAnswerQuestionMutation();
@@ -56,7 +57,13 @@ export const AIChat = ({ videoId, currentTimestamp }: AIChatProps) => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
   const handleSendMessage = async () => {
+    setShowSuggestions(false);
+
     if (!inputValue.trim()) {
       return;
     }
@@ -146,18 +153,49 @@ export const AIChat = ({ videoId, currentTimestamp }: AIChatProps) => {
     }
   };
 
-  const suggestedQuestions = [
-    'Summarize the main points',
-    'What are the key takeaways?',
-    'Explain this concept in simple terms',
-    'What examples were given?',
-    'How does this relate to...?',
-  ];
+  const handleSuggestionClick = (question: string) => {
+    setInputValue(question);
+  };
+
+  const Suggestions = useMemo(() => {
+    if (!showSuggestions) {
+      return null;
+    }
+
+    const suggestedQuestions = [
+      'Summarize the main points',
+      'What are the key takeaways?',
+      'Explain this concept in simple terms',
+      'What examples were given?',
+      'How does this relate to...?',
+    ];
+
+    return (
+      <div className='mt-2'>
+        <div className='text-xs text-muted-foreground mb-2'>
+          Suggested questions:
+        </div>
+        <div className='flex flex-wrap gap-1'>
+          {suggestedQuestions.map((question) => (
+            <Button
+              key={question}
+              variant='outline'
+              size='sm'
+              className='text-xs h-7'
+              onClick={() => handleSuggestionClick(question)}
+            >
+              {question}
+            </Button>
+          ))}
+        </div>
+      </div>
+    );
+  }, [showSuggestions]);
 
   return (
-    <Card className='h-full flex flex-col'>
-      <CardHeader className='pb-3'>
-        <CardTitle className='flex items-center gap-2 text-lg'>
+    <Card className='h-full flex flex-col pt-4 gap-4'>
+      <CardHeader className=''>
+        <CardTitle className='flex items-center gap-2 text-lg p-0'>
           <Bot className='h-5 w-5 text-accent' />
           AI Assistant
           <Sparkles className='h-4 w-4 text-accent' />
@@ -169,9 +207,9 @@ export const AIChat = ({ videoId, currentTimestamp }: AIChatProps) => {
         ) : null}
       </CardHeader>
 
-      <CardContent className='flex-1 flex flex-col p-0'>
+      <CardContent className='flex-1 flex flex-col p-0 justify-between'>
         {/* Messages */}
-        <ScrollArea className='flex-1 px-4 max-h-[calc(100vh-200px-200px-100px-50px)]'>
+        <div className='flex-1 px-4 max-h-[55vh] overflow-y-auto'>
           <div className='space-y-4 pb-4'>
             {messages.map((message) => (
               <div
@@ -229,6 +267,8 @@ export const AIChat = ({ videoId, currentTimestamp }: AIChatProps) => {
                       </Button>
                     )}
                   </div>
+
+                  <div ref={bottomRef} />
                 </div>
               </div>
             ))}
@@ -254,69 +294,66 @@ export const AIChat = ({ videoId, currentTimestamp }: AIChatProps) => {
               </div>
             ) : null}
           </div>
-        </ScrollArea>
-
-        {/* Quick Actions */}
-        <div className='px-4 py-3 border-t'>
-          <div className='flex gap-2 mb-2'>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={handleGenerateSummary}
-              disabled={isGeneratingSummary}
-              className='text-xs h-7'
-            >
-              {isGeneratingSummary ? (
-                <Loader2 className='h-3 w-3 mr-1 animate-spin' />
-              ) : (
-                <Sparkles className='h-3 w-3 mr-1' />
-              )}
-              Generate Summary
-            </Button>
-          </div>
-          <div className='text-xs text-muted-foreground mb-2'>
-            Suggested questions:
-          </div>
-          <div className='flex flex-wrap gap-1'>
-            {suggestedQuestions.map((question) => (
-              <Button
-                key={question}
-                variant='outline'
-                size='sm'
-                className='text-xs h-7'
-                onClick={() => setInputValue(question)}
-              >
-                {question}
-              </Button>
-            ))}
-          </div>
         </div>
 
-        {/* Input */}
-        <div className='p-4 border-t'>
-          <div className='flex gap-2'>
-            <Input
-              placeholder={`Ask about the video${currentTimestamp ? ` at ${formatTime(currentTimestamp)}` : ''}...`}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={(e) =>
-                e.key === 'Enter' && !e.shiftKey && handleSendMessage()
-              }
-              disabled={isLoading || isAnswering}
-            />
-            <Button
-              onClick={handleSendMessage}
-              disabled={!inputValue.trim() || isLoading || isAnswering}
-              size='icon'
-            >
-              <Send className='h-4 w-4' />
-            </Button>
-          </div>
-          {currentTimestamp !== undefined && (
-            <div className='mt-2 text-xs text-muted-foreground'>
-              Current timestamp: {formatTime(currentTimestamp)}
+        {/* Quick Actions */}
+        <div>
+          <div className='px-4 py-3 border-t'>
+            <div className='flex gap-2 mb-2'>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={handleGenerateSummary}
+                disabled={isGeneratingSummary}
+                className='text-xs h-7'
+              >
+                {isGeneratingSummary ? (
+                  <Loader2 className='h-3 w-3 mr-1 animate-spin' />
+                ) : (
+                  <Sparkles className='h-3 w-3 mr-1' />
+                )}
+                Generate Summary
+              </Button>
+
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={() => setShowSuggestions((prev) => !prev)}
+                className='text-xs h-7'
+              >
+                {showSuggestions ? 'Hide Suggestions' : 'Show Suggestions'}
+              </Button>
             </div>
-          )}
+
+            {Suggestions}
+          </div>
+
+          {/* Input */}
+          <div className='p-4 border-t'>
+            <div className='flex gap-2'>
+              <Input
+                placeholder={`Ask about the video${currentTimestamp ? ` at ${formatTime(currentTimestamp)}` : ''}...`}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyPress={(e) =>
+                  e.key === 'Enter' && !e.shiftKey && handleSendMessage()
+                }
+                disabled={isLoading || isAnswering}
+              />
+              <Button
+                onClick={handleSendMessage}
+                disabled={!inputValue.trim() || isLoading || isAnswering}
+                size='icon'
+              >
+                <Send className='h-4 w-4' />
+              </Button>
+            </div>
+            {currentTimestamp !== undefined && (
+              <div className='mt-2 text-xs text-muted-foreground'>
+                Current timestamp: {formatTime(currentTimestamp)}
+              </div>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

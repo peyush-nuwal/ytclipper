@@ -121,13 +121,8 @@ export const RegisterPage = () => {
         message?: string;
       };
       console.log('error', error.data);
-      const errorMessage =
-        error?.data?.error?.message ||
-        error?.data?.error?.details ||
-        error?.message ||
-        'Registration failed';
-      toast(errorMessage, {
-        description: error?.data?.error?.details,
+      toast('Registration failed', {
+        description: error?.data?.error?.message,
       });
     } finally {
       setIsSubmitting(false);

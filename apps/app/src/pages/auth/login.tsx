@@ -8,6 +8,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  toast,
 } from '@ytclipper/ui';
 import { AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
@@ -51,12 +52,18 @@ export const LoginPage = () => {
       const response = await login({
         email: formData.email,
         password: formData.password,
-      });
-      if (response?.data?.success) {
+      }).unwrap();
+      if (response.success) {
         navigate(from, { replace: true });
       }
-    } catch (error) {
-      console.error('Error logging in:', error);
+    } catch (err) {
+      const error = err as {
+        data?: { error?: { message?: string; details?: string } };
+        message?: string;
+      };
+      toast('Login failed', {
+        description: error?.data?.error?.message,
+      });
     }
   };
 
