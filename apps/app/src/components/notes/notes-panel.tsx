@@ -124,6 +124,16 @@ export const NotesPanel = ({
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  useEffect(() => {
+    if (!isAddingNote && !isEditingNote) {
+      document.body.style.overflow = '';
+    }
+    // Optionally, clean up on unmount
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isAddingNote, isEditingNote]);
+
   const handleAddNote = async () => {
     if (newNote.title.trim()) {
       try {

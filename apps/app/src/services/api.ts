@@ -27,11 +27,11 @@ const baseQueryWithReauth: BaseQueryFn<
   const result = await baseQuery(args, apiCall, extraOptions);
 
   if (result.error && result.error.status === 401) {
-    console.warn('🔄 Unauthorized request, redirecting to login');
+    // console.warn('🔄 Unauthorized request, redirecting to login');
     try {
       apiCall.dispatch({ type: 'auth/logout' });
       if (typeof window !== 'undefined') {
-        window.location.href = '/auth';
+        // window.location.href = '/auth';
       }
     } catch (error) {
       console.error('❌ Auth redirect failed:', error);
