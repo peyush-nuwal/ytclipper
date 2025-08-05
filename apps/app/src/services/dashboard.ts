@@ -34,7 +34,7 @@ export interface RecentNote {
   title: string;
   video_title: string;
   created_at: string;
-  tags: string[];
+  tags: string[] | null;
 }
 
 export const injectedDashboardApi = api.injectEndpoints({
@@ -57,12 +57,6 @@ export const injectedDashboardApi = api.injectEndpoints({
     >({
       query: () => '/dashboard/recent-videos',
     }),
-    getRecentActivity: builder.query<
-      UniversalResponse<{ activities: RecentActivity[] }>,
-      void
-    >({
-      query: () => '/dashboard/recent-activity',
-    }),
     getRecentNotes: builder.query<
       UniversalResponse<{ notes: RecentNote[] }>,
       void
@@ -76,6 +70,5 @@ export const {
   useGetDashboardStatsQuery,
   useGetMostUsedTagsQuery,
   useGetRecentVideosQuery,
-  useGetRecentActivityQuery,
   useGetRecentNotesQuery,
 } = injectedDashboardApi;
