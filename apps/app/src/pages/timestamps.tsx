@@ -126,10 +126,6 @@ export const TimestampsPage = () => {
     );
   }
 
-  function cn(...classes: (string | false | null | undefined)[]) {
-    return classes.filter(Boolean).join(' ');
-  }
-
   return (
     <div className='flex flex-col min-h-screen'>
       <main className='flex-1 max-w-9xl px-4 sm:px-6 lg:px-8 w-full'>
@@ -252,7 +248,7 @@ export const TimestampsPage = () => {
             minSize={30}
             style={{ overflow: 'visible' }}
           >
-            <div className={cn(isLargeScreen ? 'h-full pl-2' : 'pl-2')}>
+            <div className='h-full'>
               <Tabs defaultValue='notes' className='h-full flex flex-col'>
                 <TabsList className='grid w-full grid-cols-2'>
                   <TabsTrigger
