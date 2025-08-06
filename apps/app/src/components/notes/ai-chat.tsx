@@ -43,6 +43,7 @@ export const AIChat = ({ videoId, currentTimestamp }: AIChatProps) => {
   const [copied, setCopied] = useState(false);
   const timeStampsSliceData = useAppSelector((state) => state.timestamps);
   const videoTitle = timeStampsSliceData.videoTitle;
+  currentTimestamp = timeStampsSliceData.currentTimestamp;
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
 

@@ -104,7 +104,7 @@ export const VideosPage = () => {
   return (
     <div className='p-6 max-w-7xl mx-auto bg-background'>
       <div className='mb-6'>
-        <div className='flex items-center justify-between mb-4'>
+        <div className='flex-1 lg:flex space-y-4 items-center justify-between mb-4'>
           <div>
             <h1 className='text-2xl font-bold text-gray-900'>Your Videos</h1>
             <p className='text-gray-600 text-sm mt-1'>

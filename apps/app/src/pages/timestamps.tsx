@@ -28,7 +28,7 @@ import {
   Play,
   Sparkles,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 export const TimestampsPage = () => {
@@ -40,6 +40,23 @@ export const TimestampsPage = () => {
   const [copied, setCopied] = useState(false);
 
   const [generateSummary] = useGenerateSummaryMutation();
+
+  function useIsLargeScreen() {
+    const [isLargeScreen, setIsLargeScreen] = useState(false);
+
+    useEffect(() => {
+      const mediaQuery = window.matchMedia('(min-width: 1024px)');
+      const updateMatch = () => setIsLargeScreen(mediaQuery.matches);
+
+      updateMatch();
+      mediaQuery.addEventListener('change', updateMatch);
+      return () => mediaQuery.removeEventListener('change', updateMatch);
+    }, []);
+
+    return isLargeScreen;
+  }
+
+  const isLargeScreen = useIsLargeScreen();
 
   const handleVideoUrlSubmit = () => {
     if (videoUrl) {
@@ -109,12 +126,23 @@ export const TimestampsPage = () => {
     );
   }
 
+  function cn(...classes: (string | false | null | undefined)[]) {
+    return classes.filter(Boolean).join(' ');
+  }
+
   return (
-    <div className='flex flex-col'>
-      <main className='max-w-9xl px-4 sm:px-6 lg:px-8 flex-1'>
-        <ResizablePanelGroup direction='horizontal' className=''>
-          <ResizablePanel defaultSize={60} minSize={40}>
-            <div className='h-full pr-2'>
+    <div className='flex flex-col min-h-screen'>
+      <main className='flex-1 max-w-9xl px-4 sm:px-6 lg:px-8 w-full'>
+        <ResizablePanelGroup
+          direction={isLargeScreen ? 'horizontal' : 'vertical'}
+          className='h-full'
+        >
+          <ResizablePanel
+            defaultSize={60}
+            minSize={40}
+            style={{ overflow: 'visible' }}
+          >
+            <div className='h-full'>
               <VideoPlayer
                 videoId={videoId}
                 className='w-full h-full rounded-b-none'
@@ -217,10 +245,14 @@ export const TimestampsPage = () => {
             </div>
           </ResizablePanel>
 
-          <ResizableHandle />
+          <ResizableHandle className='m-4' />
 
-          <ResizablePanel defaultSize={40} minSize={30}>
-            <div className='h-full pl-2'>
+          <ResizablePanel
+            defaultSize={40}
+            minSize={30}
+            style={{ overflow: 'visible' }}
+          >
+            <div className={cn(isLargeScreen ? 'h-full pl-2' : 'pl-2')}>
               <Tabs defaultValue='notes' className='h-full flex flex-col'>
                 <TabsList className='grid w-full grid-cols-2'>
                   <TabsTrigger
