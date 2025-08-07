@@ -124,6 +124,16 @@ export const NotesPanel = ({
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  useEffect(() => {
+    if (!isAddingNote && !isEditingNote) {
+      document.body.style.overflow = '';
+    }
+    // Optionally, clean up on unmount
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isAddingNote, isEditingNote]);
+
   const handleAddNote = async () => {
     if (newNote.title.trim()) {
       try {
@@ -916,9 +926,9 @@ export const NotesPanel = ({
                             setTagInput('');
                             setShowTagSuggestions(false);
                           }}
-                          className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0'
+                          className='w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0 text-sm'
                         >
-                          <Tag className='h-4 w-4 text-gray-400' />
+                          <Tag className='h-3 w-3 text-gray-400' />
                           <span className='text-gray-700'>{tag.name}</span>
                         </button>
                       ))}
@@ -934,9 +944,9 @@ export const NotesPanel = ({
                               setEditingNote((prev) => ({ ...prev, tags })),
                             )
                           }
-                          className='w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-orange-600 border-b border-gray-100 last:border-b-0'
+                          className='w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-3 text-orange-600 border-b border-gray-100 last:border-b-0 text-sm'
                         >
-                          <Plus className='h-4 w-4' />
+                          <Plus className='h-3 w-3' />
                           <span>Create &ldquo;{tagInput}&rdquo;</span>
                         </button>
                       ) : null}
