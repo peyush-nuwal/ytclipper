@@ -49,6 +49,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useDebounce } from '../../hooks/use-debounce';
+import { useDispatch } from 'react-redux';
+import { setGotoTimestamp } from '../../store/slices/timestampSlice';
 
 interface Timestamp {
   id: string;
@@ -91,6 +93,8 @@ export const NotesPanel = ({
   const videoTitle = timeStampsSliceData.videoTitle;
   const [tagInput, setTagInput] = useState('');
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+
+  const dispatch = useDispatch();
 
   const {
     data: timestampsData,
@@ -351,11 +355,11 @@ export const NotesPanel = ({
   };
 
   return (
-    <div className='h-full bg-white border-l border-gray-200 flex flex-col min-w-0'>
+    <div className='h-full bg-white border border-secondary flex flex-col min-w-0 rounded-xl pb-4'>
       {/* Header */}
-      <div className='p-4 border-b border-gray-200 bg-white flex-shrink-0'>
+      <div className='p-4 border-b border-primary bg-white flex-shrink-0 rounded-t-xl'>
         <div className='flex items-center justify-between'>
-          <div className='min-w-0 flex-1'>
+          <div className='min-w-0 flex-1 rounded-t-xl'>
             <h2 className='text-lg font-semibold text-gray-900 flex items-center gap-2'>
               <FileText className='h-5 w-5 text-gray-600 flex-shrink-0' />
               <span className='truncate'>Video Notes</span>
@@ -593,7 +597,7 @@ export const NotesPanel = ({
       </div>
 
       {currentNote ? (
-        <div className='mx-4 mt-4 flex-shrink-0'>
+        <div className='m-4 flex-shrink-0'>
           <Card className='bg-orange-50 border-orange-200'>
             <CardHeader className='pb-3'>
               <div className='flex items-center justify-between'>
@@ -634,7 +638,7 @@ export const NotesPanel = ({
       ) : null}
 
       <div className='flex-1 min-h-0'>
-        <div className='flex-1 h-[calc(100vh-150px)] relative p-4 justify-center w-full overflow-y-auto'>
+        <div className='flex-1 h-fit max-h-[90vh] relative px-4 pb-4 justify-center w-full overflow-y-auto'>
           {timestampsLoading ? (
             <div className='text-center py-8'>
               <div className='inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-4'>
@@ -719,6 +723,39 @@ export const NotesPanel = ({
                           </div>
                         </div>
                         <div className='flex items-center gap-1 flex-shrink-0 justify-center'>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-8 min-w-8 w-full p-0 hover:bg-gray-200'
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dispatch(setGotoTimestamp(note.timestamp));
+                            }}
+                            disabled={isUpdating}
+                          >
+                            {isUpdating ? (
+                              <Loader2 className='h-4 w-4 animate-spin' />
+                            ) : (
+                              <>
+                                <svg
+                                  xmlns='http://www.w3.org/2000/svg'
+                                  width='24'
+                                  height='24'
+                                  viewBox='0 0 24 24'
+                                  fill='none'
+                                  stroke='currentColor'
+                                  strokeWidth='2'
+                                  strokeLinecap='round'
+                                  strokeLinejoin='round'
+                                >
+                                  <path d='M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6' />
+                                  <path d='m21 3-9 9' />
+                                  <path d='M15 3h6v6' />
+                                </svg>
+                                <div className='md:hidden'>Goto</div>
+                              </>
+                            )}
+                          </Button>
                           <Button
                             variant='ghost'
                             size='sm'
